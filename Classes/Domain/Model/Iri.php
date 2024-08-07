@@ -30,9 +30,9 @@ use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Extbase\DomainObject\AbstractEntity;
 use TYPO3\CMS\Extbase\Annotation as Extbase;
 use TYPO3\CMS\Extbase\Annotation\ORM\Lazy;
+use Digicademy\Lod\Domain\Model\IriNamespace;
 use Digicademy\Lod\Domain\Repository\StatementRepository;
 use TYPO3\CMS\Extbase\Persistence\ObjectStorage;
-use TYPO3\CMS\Extbase\Object\ObjectManager;
 
 class Iri extends AbstractEntity
 {
@@ -118,12 +118,16 @@ class Iri extends AbstractEntity
      */
     protected $inverseStatements;
 
+    public function __construct(
+        protected readonly StatementRepository $statementRepository
+    ) {}
+
     /**
      * Returns the type
      *
      * @return integer type
      */
-    public function getType()
+    public function getType(): ?int
     {
         return $this->type;
     }
@@ -135,7 +139,7 @@ class Iri extends AbstractEntity
      *
      * @return void
      */
-    public function setType($type)
+    public function setType(string $type): void
     {
         $this->type = $type;
     }
@@ -145,7 +149,7 @@ class Iri extends AbstractEntity
      *
      * @return string $label
      */
-    public function getLabel()
+    public function getLabel(): ?string
     {
         return $this->label;
     }
@@ -157,7 +161,7 @@ class Iri extends AbstractEntity
      *
      * @return void
      */
-    public function setLabel($label)
+    public function setLabel(string $label): void
     {
         $this->label = $label;
     }
@@ -167,7 +171,7 @@ class Iri extends AbstractEntity
      *
      * @return string $labelLanguage
      */
-    public function getLabelLanguage()
+    public function getLabelLanguage(): ?string
     {
         return $this->labelLanguage;
     }
@@ -179,7 +183,7 @@ class Iri extends AbstractEntity
      *
      * @return void
      */
-    public function setLabelLanguage($labelLanguage)
+    public function setLabelLanguage(string $labelLanguage): void
     {
         $this->labelLanguage = $labelLanguage;
     }
@@ -189,7 +193,7 @@ class Iri extends AbstractEntity
      *
      * @return string $comment
      */
-    public function getComment()
+    public function getComment(): ?string
     {
         return $this->comment;
     }
@@ -201,7 +205,7 @@ class Iri extends AbstractEntity
      *
      * @return void
      */
-    public function setComment($comment)
+    public function setComment(string $comment): void
     {
         $this->comment = $comment;
     }
@@ -211,7 +215,7 @@ class Iri extends AbstractEntity
      *
      * @return string $commentLanguage
      */
-    public function getCommentLanguage()
+    public function getCommentLanguage(): ?string
     {
         return $this->commentLanguage;
     }
@@ -223,7 +227,7 @@ class Iri extends AbstractEntity
      *
      * @return void
      */
-    public function setCommentLanguage($commentLanguage)
+    public function setCommentLanguage(string $commentLanguage): void
     {
         $this->commentLanguage = $commentLanguage;
     }
@@ -231,9 +235,9 @@ class Iri extends AbstractEntity
     /**
      * Returns the namespace
      *
-     * @return \Digicademy\Lod\Domain\Model\IriNamespace $namespace
+     * @return IriNamespace $namespace
      */
-    public function getNamespace()
+    public function getNamespace(): ?IriNamespace
     {
         return $this->namespace;
     }
@@ -241,11 +245,11 @@ class Iri extends AbstractEntity
     /**
      * Sets the namespace
      *
-     * @param \Digicademy\Lod\Domain\Model\IriNamespace $namespace
+     * @param IriNamespace $namespace
      *
      * @return void
      */
-    public function setNamespace(\Digicademy\Lod\Domain\Model\IriNamespace $namespace)
+    public function setNamespace(IriNamespace $namespace): void
     {
         $this->namespace = $namespace;
     }
@@ -255,7 +259,7 @@ class Iri extends AbstractEntity
      *
      * @return string $value
      */
-    public function getValue()
+    public function getValue(): ?string
     {
         return $this->value;
     }
@@ -267,7 +271,7 @@ class Iri extends AbstractEntity
      *
      * @return void
      */
-    public function setValue($value)
+    public function setValue(string $value): void
     {
         $this->value = $value;
     }
@@ -277,7 +281,7 @@ class Iri extends AbstractEntity
      *
      * @return string $record
      */
-    public function getRecord()
+    public function getRecord(): ?string
     {
         return $this->record;
     }
@@ -289,7 +293,7 @@ class Iri extends AbstractEntity
      *
      * @return void
      */
-    public function setRecord($record)
+    public function setRecord(string $record): void
     {
         $this->record = $record;
     }
@@ -311,7 +315,7 @@ class Iri extends AbstractEntity
      *
      * @return void
      */
-    public function setRepresentations($representations)
+    public function setRepresentations($representations): void
     {
         $this->representations = $representations;
     }
@@ -344,7 +348,7 @@ class Iri extends AbstractEntity
      *
      * @return void
      */
-    public function setStatements($statements)
+    public function setStatements($statements): void
     {
         $this->statements = $statements;
     }
@@ -357,9 +361,7 @@ class Iri extends AbstractEntity
     public function getInverseStatements()
     {
         $objectStorage = GeneralUtility::makeInstance(ObjectStorage::class);
-        $objectManager = GeneralUtility::makeInstance(ObjectManager::class);
-        $statementRepository = $objectManager->get(StatementRepository::class);
-        $inverseStatements = $statementRepository->findByPosition('object', $this);
+        $inverseStatements = $this->statementRepository->findByPosition('object', $this);
 
         if ($inverseStatements) {
             foreach ($inverseStatements as $inverseStatement) {
@@ -379,5 +381,4 @@ class Iri extends AbstractEntity
         $this->inverseStatements = $objectStorage;
         return $this->inverseStatements;
     }
-
 }
