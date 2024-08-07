@@ -41,13 +41,16 @@ use TYPO3\CMS\Extbase\Object\ObjectManager;
  */
 class ItemMappingService
 {
+    public function __construct(
+        protected readonly DataMapper $dataMapper
+    ){}
 
     /**
      * @param string $record
      *
      * @return object
      */
-    public function mapItem($record)
+    public function mapItem(string $record): ?object
     {
         $item = null;
 
@@ -63,9 +66,9 @@ class ItemMappingService
     /**
      * @param string $record
      *
-     * @return \Digicademy\Lod\Domain\Model\Record
+     * @return Record
      */
-    public function mapGenericItem($record)
+    public function mapGenericItem(string $record): ?Record
     {
         $item = null;
 
@@ -101,7 +104,7 @@ class ItemMappingService
      *
      * @return array
      */
-    protected function load($record)
+    protected function load(string $record): ?array
     {
         $result = [];
 
@@ -141,7 +144,7 @@ class ItemMappingService
      *
      * @return object
      */
-    protected function map($row, $tablename)
+    protected function map(array $row, string $tablename): ?object
     {
         $result = null;
 
@@ -174,10 +177,7 @@ class ItemMappingService
 
         // if a class name exists, map row to domain object
         if ($className) {
-            // from 9.5 onwards we (irritatingly) need the object manager otherwise DI does not seem to work
-            $objectManager = GeneralUtility::makeInstance(ObjectManager::class);
-            $dataMapper = $objectManager->get(DataMapper::class);
-            $mappedRecord = $dataMapper->map($className, [$row]);
+            $mappedRecord = $this->dataMapper->map($className, [$row]);
             $result = $mappedRecord[0];
         }
 
@@ -187,9 +187,11 @@ class ItemMappingService
     /**
      * Signal/Slot method that maps tablename_uid strings from TCA group fields to objects
      *
+     * @param object $domainObject
+     *
      * @return void
      */
-    public function mapGenericProperty($domainObject)
+    public function mapGenericProperty(object $domainObject): void
     {
         // map record property of IRI object (if not empty)
         if (get_class($domainObject) == 'Digicademy\Lod\Domain\Model\Iri') {
