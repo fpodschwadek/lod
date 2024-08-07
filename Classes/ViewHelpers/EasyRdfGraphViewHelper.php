@@ -1,7 +1,5 @@
 <?php
 
-namespace Digicademy\Lod\ViewHelpers;
-
 /***************************************************************
  *  Copyright notice
  *
@@ -26,34 +24,25 @@ namespace Digicademy\Lod\ViewHelpers;
  *  This copyright notice MUST APPEAR in all copies of the script!
  ***************************************************************/
 
-use TYPO3Fluid\Fluid\Core\ViewHelper\AbstractViewHelper;
-use TYPO3\CMS\Extbase\Object\ObjectManagerInterface;
+namespace Digicademy\Lod\ViewHelpers;
+
+use TYPO3\CMS\Extbase\Object\Container\Container;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Extbase\Exception;
+use TYPO3Fluid\Fluid\Core\ViewHelper\AbstractViewHelper;
 
 class EasyRdfGraphViewHelper extends AbstractViewHelper
 {
-
-    /**
-     * @var ObjectManagerInterface
-     */
-    protected $objectManager = null;
-
-    /**
-     * @param ObjectManagerInterface $objectManager
-     */
-    public function injectObjectManager(ObjectManagerInterface $objectManager)
-    {
-        $this->objectManager = $objectManager;
-    }
+    public function __construct(protected readonly Container $container)
+    {}
 
     /**
      * Initialize ViewHelper arguments
      *
      * @return void
-     * @throws
      */
-    public function initializeArguments() {
+    public function initializeArguments(): void
+    {
         $this->registerArgument(
             'url',
             'string',
@@ -120,9 +109,8 @@ class EasyRdfGraphViewHelper extends AbstractViewHelper
     /**
      * @see http://www.easyrdf.org/docs/api/EasyRdf_Graph.html
      * @return string
-     * @throws
      */
-    public function render()
+    public function render(): string
     {
         $result = [];
 
@@ -144,14 +132,14 @@ class EasyRdfGraphViewHelper extends AbstractViewHelper
 
                 // optionally set namespaces
                 if (is_array($this->arguments['namespaces'])) {
-                    $namespaceRegistry = $this->objectManager->get($namespaceClass);
+                    $namespaceRegistry = $this->container->getInstance($namespaceClass);
                     foreach ($this->arguments['namespaces'] as $prefix => $fqdn) {
                         $namespaceRegistry::set($prefix, $fqdn);
                     }
                 }
 
                 // parse data and apply property path
-                $graph = $this->objectManager->get($graphClassname);
+                $graph = $this->container->getInstance($graphClassname);
                 $graph->parse($data, $this->arguments['format']);
 
                 // execute method by key
@@ -242,5 +230,4 @@ class EasyRdfGraphViewHelper extends AbstractViewHelper
 
         return $result;
     }
-
 }
