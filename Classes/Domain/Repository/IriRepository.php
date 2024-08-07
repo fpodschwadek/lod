@@ -36,11 +36,35 @@ use TYPO3\CMS\Extbase\Persistence\Exception\InvalidQueryException;
 
 class IriRepository extends Repository
 {
-
     protected $defaultOrderings = array(
         'value' => QueryInterface::ORDER_ASCENDING,
         'label' => QueryInterface::ORDER_ASCENDING
     );
+
+    protected ?IriNamespaceRepository $iriNamespaceRepository = null;
+    protected ?ConfigurationManagerInterface $configurationManager = null;
+
+    /**
+     * @param  IriNamespaceRepository $iriNamespaceRepository
+     * @return void
+     */
+    public function injectIriNamespaceRepository(
+        IriNamespaceRepository $iriNamespaceRepository
+    ): void
+    {
+        $this->iriNamespaceRepository = $iriNamespaceRepository;
+    }
+
+    /**
+     * @param  ConfigurationManagerInterface $configurationManager
+     * @return void
+     */
+    public function injectConfigurationManager(
+        ConfigurationManagerInterface $configurationManager
+    ): void
+    {
+        $this->configurationManager = $configurationManager;
+    }
 
     /**
      * IRI lookup by string representation (like 'prefix:value').
@@ -53,7 +77,11 @@ class IriRepository extends Repository
      *
      * @return object|null;
      */
-    public function findByValue($value, $action = 'show', $additionalPids = [])
+    public function findByValue(
+        string $value,
+        string $action = 'show',
+        array $additionalPids = []
+    ): ?object
     {
         // initialize query object
         $query = $this->createQuery();
@@ -65,12 +93,8 @@ class IriRepository extends Repository
         if (substr_count($value, ':') == 1 && substr_count($value, '://') == 0) {
 
             $iriParts = GeneralUtility::trimExplode(':', $value);
-
-            $iriNamespaceRepository = $this->objectManager->get(IriNamespaceRepository::class);
-            $configurationManager = $this->objectManager->get(ConfigurationManagerInterface::class);
-            $settings = $configurationManager->getConfiguration('Settings');
-
-            $namespace = $iriNamespaceRepository->findByPrefix($iriParts[0], $action, $settings)->getFirst();
+            $settings = $this->configurationManager->getConfiguration('Settings');
+            $namespace = $this->iriNamespaceRepository->findByPrefix($iriParts[0], $action, $settings)->getFirst();
 
             if ($namespace) {
                 $constraints[] = $query->equals('namespace', $namespace);
@@ -117,7 +141,10 @@ class IriRepository extends Repository
      * @return QueryResultInterface|null
      * @throws InvalidQueryException
      */
-    public function findByArguments($arguments, $settings)
+    public function findByArguments(
+        array $arguments,
+        array $settings
+    ): ?QueryResultInterface
     {
         // initialize query object
         $query = $this->createQuery();
@@ -185,5 +212,4 @@ class IriRepository extends Repository
 
         return $query->execute();
     }
-
 }
