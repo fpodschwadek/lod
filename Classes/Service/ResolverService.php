@@ -1,5 +1,4 @@
 <?php
-namespace Digicademy\Lod\Service;
 
 /***************************************************************
  *
@@ -26,8 +25,9 @@ namespace Digicademy\Lod\Service;
  *  This copyright notice MUST APPEAR in all copies of the script!
  ***************************************************************/
 
-use TYPO3\CMS\Core\Utility\GeneralUtility;
-use TYPO3\CMS\Extbase\Object\ObjectManagerInterface;
+namespace Digicademy\Lod\Service;
+
+use TYPO3\CMS\Extbase\Object\Container\Container;
 use Digicademy\Lod\Domain\Model\Representation;
 
 /**
@@ -44,40 +44,31 @@ class ResolverService
     protected $availableResolvers = [];
 
     /**
-     * @var \TYPO3\CMS\Extbase\Object\ObjectManagerInterface
-     */
-    protected $objectManager;
-
-    /**
-     * @param \TYPO3\CMS\Extbase\Object\ObjectManagerInterface $objectManager
-     */
-    public function injectObjectManager(ObjectManagerInterface $objectManager)
-        {
-        $this->objectManager = $objectManager;
-    }
-
-    /**
      * ResolverService constructor
+     *
+     * @todo: implement hook for resolvers from extensions
      */
-    public function __construct()
+    public function __construct(protected readonly Container $container)
     {
         $this->availableResolvers = $GLOBALS['TYPO3_CONF_VARS']['EXTCONF']['lod']['resolver'];
-//@TODO: implement hook for resolvers from extensions
     }
 
     /**
-     * @param \Digicademy\Lod\Domain\Model\Representation $representation
+     * @param Representation $representation
      * @param array $settings
      *
      * @return string
      */
-     public function resolve(Representation $representation, $settings)
-     {
+     public function resolve(
+        Representation $representation,
+        array $settings
+    ): string
+    {
         $url = '';
         $scheme = $representation->getScheme();
 
         if ($this->availableResolvers[$scheme]) {
-            $resolver = $this->objectManager->get(
+            $resolver = $this->container->getInstance(
                 $this->availableResolvers[$scheme],
                 $settings[$scheme]
             );
@@ -86,5 +77,4 @@ class ResolverService
 
         return $url;
      }
-
 }
