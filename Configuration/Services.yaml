@@ -27,6 +27,10 @@ services:
   Digicademy\Lod\Service\ItemMappingService:
     public: true
 
+  # We need the to inject the container instance for some dependency fetching,
+  # so we need to autowire the container itself.
+  TYPO3\CMS\Extbase\Object\Container\Container:
+
   # the following services are instantiated within a BE hook and need no autowiring
   # Digicademy\Lod\Service\IdentifierGeneratorService:
   # Digicademy\Lod\Service\TableTrackingService:
