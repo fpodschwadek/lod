@@ -28,32 +28,21 @@ namespace Digicademy\Lod\ViewHelpers;
 
 use Digicademy\Lod\Domain\Model\IriNamespace;
 use TYPO3\CMS\Extbase\Exception;
+use TYPO3\CMS\Extbase\Object\Container\Container;
 use TYPO3Fluid\Fluid\Core\ViewHelper\AbstractViewHelper;
-use TYPO3\CMS\Extbase\Object\ObjectManagerInterface;
 
 class EasyRdfConverterViewHelper extends AbstractViewHelper
 {
-
-    /**
-     * @var ObjectManagerInterface
-     */
-    protected $objectManager = null;
-
-    /**
-     * @param ObjectManagerInterface $objectManager
-     */
-    public function injectObjectManager(ObjectManagerInterface $objectManager)
-    {
-        $this->objectManager = $objectManager;
-    }
+    public function __construct(protected readonly Container $container)
+    {}
 
     /**
      * Initialize ViewHelper arguments
      *
      * @return void
-     * @throws
      */
-    public function initializeArguments() {
+    public function initializeArguments(): void
+    {
         $this->registerArgument(
             'inputFormat',
             'string',
@@ -82,9 +71,8 @@ class EasyRdfConverterViewHelper extends AbstractViewHelper
 
     /**
      * @return string
-     * @throws
      */
-    public function render()
+    public function render(): string
     {
         if (class_exists('EasyRdf_Graph') || class_exists('\EasyRdf\Graph')) {
 
@@ -100,9 +88,9 @@ class EasyRdfConverterViewHelper extends AbstractViewHelper
 
             // take care of EasyRdf namespaces after version 0.9
             if (class_exists('EasyRdf_Graph')) {
-                $graph = $this->objectManager->get(\EasyRdf_Graph::class);
+                $graph = $this->container->getInstance(\EasyRdf_Graph::class);
             } else {
-                $graph = $this->objectManager->get(\EasyRdf\Graph::class);
+                $graph = $this->container->getInstance(\EasyRdf\Graph::class);
             }
 
             // parse rendered data into EasyRdf graph
@@ -147,5 +135,4 @@ class EasyRdfConverterViewHelper extends AbstractViewHelper
 
         return $convertedData;
     }
-
 }
