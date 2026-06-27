@@ -1,4 +1,4 @@
-<form id="statementFilter" action="{environment.TYPO3_REQUEST_HOST}{f:render(partial : 'Api/Uri', arguments : {action : 'list', type : '1991', limit : arguments.limit}) -> f:format.htmlspecialchars()}" method="post">
+<form id="statementFilter" action="{environment.TYP03_SITE_BASE_URL}{f:render(partial : 'Api/Uri', arguments : {action : 'list', type : '1991', limit : arguments.limit}) -> f:format.htmlspecialchars()}" method="post">
     <fieldset>
         <legend><f:translate key="api.list.statementFilter.legend" /></legend>
         <label for="subject" class="skip"><f:translate key="api.list.statementFilter.subject" /></label>

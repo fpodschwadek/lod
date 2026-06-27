@@ -2,7 +2,7 @@
     <li><strong><f:translate key="api.list.resourcesPerPage" /></strong></li>
     <f:for each="{0 : '50', 1 : '100', 2 : '200', 3 : '500'}" as="limit">
         <li>
-            <a class="button small" href="{environment.TYPO3_REQUEST_HOST}{f:render(partial : 'Api/Uri', arguments : {action : action, type : '1991', limit : limit, page : arguments.page, query : arguments.query, subject : arguments.subject, predicate : arguments.predicate, object : arguments.object, sorting : arguments.sorting}) -> f:format.htmlspecialchars()}">
+            <a class="button small" href="{environment.TYP03_SITE_BASE_URL}{f:render(partial : 'Api/Uri', arguments : {action : action, type : '1991', limit : limit, page : arguments.page, query : arguments.query, subject : arguments.subject, predicate : arguments.predicate, object : arguments.object, sorting : arguments.sorting}) -> f:format.htmlspecialchars()}">
                 {limit}
             </a>
         </li>

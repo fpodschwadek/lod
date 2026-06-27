@@ -31,19 +31,19 @@
             <tr>
                 <th>
                     <f:translate key="api.list.resource" />
-                    <a class="button sorting{f:if(condition: '{arguments.sorting} == 1', then : ' active', else : '')}" href="{environment.TYPO3_REQUEST_HOST}{f:render(partial : 'Api/Uri', arguments : {action : 'list', type : '1991', query : arguments.query, subject : arguments.subject, predicate : arguments.predicate, object : arguments.object, limit : arguments.limit, page : arguments.page, sorting : 1}) -> f:format.htmlspecialchars()}">
+                    <a class="button sorting{f:if(condition: '{arguments.sorting} == 1', then : ' active', else : '')}" href="{environment.TYP03_SITE_BASE_URL}{f:render(partial : 'Api/Uri', arguments : {action : 'list', type : '1991', query : arguments.query, subject : arguments.subject, predicate : arguments.predicate, object : arguments.object, limit : arguments.limit, page : arguments.page, sorting : 1}) -> f:format.htmlspecialchars()}">
                         ↓
                     </a>
-                    <a class="button sorting{f:if(condition: '{arguments.sorting} == 2', then : ' active', else : '')}" href="{environment.TYPO3_REQUEST_HOST}{f:render(partial : 'Api/Uri', arguments : {action : 'list', type : '1991', query : arguments.query, subject : arguments.subject, predicate : arguments.predicate, object : arguments.object, limit : arguments.limit, page : arguments.page, sorting : 2}) -> f:format.htmlspecialchars()}">
+                    <a class="button sorting{f:if(condition: '{arguments.sorting} == 2', then : ' active', else : '')}" href="{environment.TYP03_SITE_BASE_URL}{f:render(partial : 'Api/Uri', arguments : {action : 'list', type : '1991', query : arguments.query, subject : arguments.subject, predicate : arguments.predicate, object : arguments.object, limit : arguments.limit, page : arguments.page, sorting : 2}) -> f:format.htmlspecialchars()}">
                         ↑
                     </a>
                 </th>
                 <th>
                     <f:translate key="api.list.label" />
-                    <a class="button sorting{f:if(condition: '{arguments.sorting} == 3', then : ' active', else : '')}" href="{environment.TYPO3_REQUEST_HOST}{f:render(partial : 'Api/Uri', arguments : {action : 'list', type : '1991', query : arguments.query, subject : arguments.subject, predicate : arguments.predicate, object : arguments.object, limit : arguments.limit, page : arguments.page, sorting : 3}) -> f:format.htmlspecialchars()}">
+                    <a class="button sorting{f:if(condition: '{arguments.sorting} == 3', then : ' active', else : '')}" href="{environment.TYP03_SITE_BASE_URL}{f:render(partial : 'Api/Uri', arguments : {action : 'list', type : '1991', query : arguments.query, subject : arguments.subject, predicate : arguments.predicate, object : arguments.object, limit : arguments.limit, page : arguments.page, sorting : 3}) -> f:format.htmlspecialchars()}">
                         ↓
                     </a>
-                    <a class="button sorting{f:if(condition: '{arguments.sorting} == 4', then : ' active', else : '')}" href="{environment.TYPO3_REQUEST_HOST}{f:render(partial : 'Api/Uri', arguments : {action : 'list', type : '1991', query : arguments.query, subject : arguments.subject, predicate : arguments.predicate, object : arguments.object, limit : arguments.limit, page : arguments.page, sorting : 4}) -> f:format.htmlspecialchars()}">
+                    <a class="button sorting{f:if(condition: '{arguments.sorting} == 4', then : ' active', else : '')}" href="{environment.TYP03_SITE_BASE_URL}{f:render(partial : 'Api/Uri', arguments : {action : 'list', type : '1991', query : arguments.query, subject : arguments.subject, predicate : arguments.predicate, object : arguments.object, limit : arguments.limit, page : arguments.page, sorting : 4}) -> f:format.htmlspecialchars()}">
                         ↑
                     </a>
                 </th>
@@ -54,13 +54,13 @@
         <f:for each="{resources}" as="resource">
             <tr property="member" resource="{resource.namespace.iri -> f:format.htmlspecialchars()}{resource.value -> f:format.htmlspecialchars()}">
                 <td id="{resource.value}" about="{resource.namespace.iri -> f:format.htmlspecialchars()}{resource.value -> f:format.htmlspecialchars()}">
-                    <a property="rdfs:seeAlso" href="{environment.TYPO3_REQUEST_HOST}{f:render(partial : 'Api/Uri', arguments : {action : 'show', type : '1991', resource : resource, query : arguments.query, subject : arguments.subject, predicate : arguments.predicate, object : arguments.object, limit : arguments.limit, page : arguments.page, sorting : arguments.sorting}) -> f:format.htmlspecialchars()}" typeof="void:Dataset">
+                    <a property="rdfs:seeAlso" href="{environment.TYP03_SITE_BASE_URL}{f:render(partial : 'Api/Uri', arguments : {action : 'show', type : '1991', resource : resource, query : arguments.query, subject : arguments.subject, predicate : arguments.predicate, object : arguments.object, limit : arguments.limit, page : arguments.page, sorting : arguments.sorting}) -> f:format.htmlspecialchars()}" typeof="void:Dataset">
                         <span property="void:feature" resource="http://www.w3.org/ns/formats/RDFa">{resource.value}</span>
                     </a>
                 </td>
                 <td>
                     <f:if condition="{resource.label}">
-                        <a href="{environment.TYPO3_REQUEST_HOST}{f:render(partial : 'Api/Uri', arguments : {action : 'show', type : '1991', resource : resource, query : arguments.query, subject : arguments.subject, predicate : arguments.predicate, object : arguments.object, limit : arguments.limit, page : arguments.page, sorting : arguments.sorting}) -> f:format.htmlspecialchars()}" typeof="void:Dataset">
+                        <a href="{environment.TYP03_SITE_BASE_URL}{f:render(partial : 'Api/Uri', arguments : {action : 'show', type : '1991', resource : resource, query : arguments.query, subject : arguments.subject, predicate : arguments.predicate, object : arguments.object, limit : arguments.limit, page : arguments.page, sorting : arguments.sorting}) -> f:format.htmlspecialchars()}" typeof="void:Dataset">
                             {resource.label}
                         </a>
                     </f:if>

@@ -100,10 +100,14 @@ class VocabularyController extends ActionController
         // assign current arguments
         $this->view->assign('arguments', $this->request->getArguments());
 
+        // Get an instance of NormalizedParams, which provides normalized server
+        // parameters and substitutes GeneralUtility::getIndpEnv().
+        $normalizedParams = $this->request->getAttribute('normalizedParams');
+
         // provide environment vars
         $environment = [
-            'TYPO3_REQUEST_HOST' => GeneralUtility::getIndpEnv('TYPO3_REQUEST_HOST'),
-            'TYPO3_REQUEST_URL' => GeneralUtility::getIndpEnv('TYPO3_REQUEST_URL'),
+            'TYPO3_SITE_BASE_URL' => rtrim($normalizedParams->getSiteUrl(), '/'),
+            'TYPO3_REQUEST_URL' => $normalizedParams->getRequestUrl(),
             'TSFE' => ['pageArguments' => $GLOBALS['TSFE']->pageArguments],
         ];
         $this->view->assign('environment', $environment);
