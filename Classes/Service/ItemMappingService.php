@@ -34,6 +34,7 @@ use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Package\PackageManager;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Extbase\Persistence\Generic\Mapper\DataMapper;
+use TYPO3\CMS\Core\Localization\LanguageServiceFactory;
 
 /**
  * Service to load and map records from generic TCA group fields
@@ -76,11 +77,19 @@ class ItemMappingService
 
         if ($result['row']) {
             $formDataProvider = GeneralUtility::makeInstance(TcaRecordTitle::class);
+            $titleLabel = $GLOBALS['TCA'][$result['tablename']]['ctrl']['title'];
+            if (($GLOBALS['TSFE'] ?? null) !== null) {
+                $translatedTitle = $GLOBALS['TSFE']->sL($titleLabel);
+            } else {
+                $translatedTitle = GeneralUtility::makeInstance(LanguageServiceFactory::class)
+                    ->create('default')
+                    ->sL($titleLabel);
+            }
             $tcaProcessing = $formDataProvider->addData([
                 'databaseRow' => $result['row'],
                 'processedTca' => $GLOBALS['TCA'][$result['tablename']],
                 'tablename' => $result['tablename'],
-                'title' => $GLOBALS['TSFE']->sL($GLOBALS['TCA'][$result['tablename']]['ctrl']['title']),
+                'title' => $translatedTitle,
             ]);
 
             $item = GeneralUtility::makeInstance(Record::class);
