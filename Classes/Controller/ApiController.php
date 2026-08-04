@@ -76,7 +76,7 @@ class ApiController extends ActionController
         protected StatementRepository $statementRepository,
         protected ContentNegotiationService $contentNegotiationService,
         protected ResolverService $resolverService,
-        private UriBuilder $uriBuilder
+        protected UriBuilder $uriBuilder
     ) {}
 
     /**
