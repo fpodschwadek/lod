@@ -76,7 +76,7 @@ class ApiController extends ActionController
         protected StatementRepository $statementRepository,
         protected ContentNegotiationService $contentNegotiationService,
         protected ResolverService $resolverService,
-        private readonly \TYPO3\CMS\Extbase\Mvc\Web\Routing\UriBuilder $uriBuilder
+        private UriBuilder $uriBuilder
     ) {}
 
     /**
