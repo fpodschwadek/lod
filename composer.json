@@ -18,14 +18,14 @@
 	},
 	"version": "1.0.0",
 	"require": {
-		"typo3/cms-core": ">=12.0.0 || <=12.4.99",
+		"typo3/cms-core": "^13.4",
 		"ext-json": "*"
 	},
 	"require-dev": {
-		"codeception/codeception": "^5.2",
-		"phpstan/phpstan": "^1.12",
-		"ssch/typo3-rector": "^2.13",
-		"typo3/coding-standards": "^0.7.1",
+		"codeception/codeception": "^5.3",
+		"phpstan/phpstan": "^2.2",
+		"ssch/typo3-rector": "^3.14",
+		"typo3/coding-standards": "^0.9.0",
 		"codeception/module-phpbrowser": "*",
 		"codeception/module-asserts": "*"
 	},
