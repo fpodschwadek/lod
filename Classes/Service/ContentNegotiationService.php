@@ -79,7 +79,7 @@ class ContentNegotiationService
         $this->typoScriptSetup = $GLOBALS['TYPO3_REQUEST']->getAttribute('frontend.typoscript')->getSetupArray();
         //To do: make sure the request is passed on to this service!
 
-        $pageType = $request->getQueryParams()['type'] ?? $GLOBALS['TSFE']->getPageArguments()->getPageType();
+        $pageType = $request->getQueryParams()['type'] ?? $GLOBALS['TYPO3_REQUEST']->getAttribute('routing')->getPageType();
 
         $this->setAcceptedMimeTypes();
         $this->setAvailableMimeTypes();

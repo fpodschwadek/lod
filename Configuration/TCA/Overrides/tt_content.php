@@ -23,8 +23,8 @@ ExtensionUtility::registerPlugin(
     'LOD: Serializer'
 );
 
-$GLOBALS['TCA']['tt_content']['types']['list']['subtypes_addlist']['lod_vocabulary'] = 'pi_flexform';
-ExtensionManagementUtility::addPiFlexFormValue('lod_vocabulary', 'FILE:EXT:lod/Configuration/FlexForms/VocabularyPlugin.xml');
+\TYPO3\CMS\Core\Utility\ExtensionManagementUtility::addToAllTCAtypes('tt_content', '--div--;Configuration,pi_flexform,', 'lod_vocabulary', 'after:subheader');
+ExtensionManagementUtility::addPiFlexFormValue('*', 'FILE:EXT:lod/Configuration/FlexForms/VocabularyPlugin.xml', 'lod_vocabulary');
 
-$GLOBALS['TCA']['tt_content']['types']['list']['subtypes_addlist']['lod_serializer'] = 'pi_flexform';
-ExtensionManagementUtility::addPiFlexFormValue('lod_serializer', 'FILE:EXT:lod/Configuration/FlexForms/SerializerPlugin.xml');
+\TYPO3\CMS\Core\Utility\ExtensionManagementUtility::addToAllTCAtypes('tt_content', '--div--;Configuration,pi_flexform,', 'lod_serializer', 'after:subheader');
+ExtensionManagementUtility::addPiFlexFormValue('*', 'FILE:EXT:lod/Configuration/FlexForms/SerializerPlugin.xml', 'lod_serializer');

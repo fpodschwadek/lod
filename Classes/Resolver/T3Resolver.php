@@ -54,7 +54,7 @@ class T3Resolver extends AbstractResolver implements ResolverInterface
             $typoScriptConfiguration['forceAbsoluteUrl'] = '1';
 
             if ($configuration && $linkHandlerConfiguration && $typoScriptConfiguration) {
-                $record = $tsfe->sys_page->checkRecord($linkHandlerConfiguration['table'], $linkDetails['uid']);
+                $record = \TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance(\TYPO3\CMS\Core\Domain\Repository\PageRepository::class)->checkRecord($linkHandlerConfiguration['table'], $linkDetails['uid']);
 
                 if ($record) {
                     $representation->getFragment() ? $record['fragment'] = $representation->getFragment() : false;

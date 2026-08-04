@@ -45,7 +45,9 @@ class ItemMappingService
 
     public function __construct(
         protected readonly DataMapper $dataMapper,
-        protected readonly PackageManager $packageManager
+        protected readonly PackageManager $packageManager,
+        private readonly \TYPO3\CMS\Core\Localization\LanguageServiceFactory $languageServiceFactory,
+        private readonly \TYPO3\CMS\Core\Database\ConnectionPool $connectionPool
     ) {}
 
     /**
@@ -81,7 +83,7 @@ class ItemMappingService
             if (($GLOBALS['TSFE'] ?? null) !== null) {
                 $translatedTitle = $GLOBALS['TSFE']->sL($titleLabel);
             } else {
-                $translatedTitle = GeneralUtility::makeInstance(LanguageServiceFactory::class)
+                $translatedTitle = $this->languageServiceFactory
                     ->create('default')
                     ->sL($titleLabel);
             }
@@ -125,7 +127,7 @@ class ItemMappingService
 
         // if class and tablename exist perform MM query for items, map them and add them to the object storage
         if ($tablename && $uid) {
-            $row = GeneralUtility::makeInstance(ConnectionPool::class)
+            $row = $this->connectionPool
                 ->getConnectionForTable($tablename)
                 ->select(
                     ['*'], // fields

@@ -75,7 +75,8 @@ class ApiController extends ActionController
         protected GraphRepository $graphRepository,
         protected StatementRepository $statementRepository,
         protected ContentNegotiationService $contentNegotiationService,
-        protected ResolverService $resolverService
+        protected ResolverService $resolverService,
+        private readonly \TYPO3\CMS\Extbase\Mvc\Web\Routing\UriBuilder $uriBuilder
     ) {}
 
     /**
@@ -93,8 +94,8 @@ class ApiController extends ActionController
         // check if pageType is set (either via param or masked through PageTypeSuffix)
         if ($this->request->getParsedBody()['type'] ?? $this->request->getQueryParams()['type'] ?? null) {
             $pageType = $this->request->getParsedBody()['type'] ?? $this->request->getQueryParams()['type'] ?? null;
-        } elseif ($GLOBALS['TSFE']->getPageArguments()->getPageType() > 0) {
-            $pageType = $GLOBALS['TSFE']->getPageArguments()->getPageType();
+        } elseif ($this->request->getAttribute('routing')->getPageType() > 0) {
+            $pageType = $this->request->getAttribute('routing')->getPageType();
         } else {
             $pageType = 0;
         }
@@ -120,7 +121,7 @@ class ApiController extends ActionController
         $environment = [
             'TYPO3_SITE_BASE_URL' => rtrim($normalizedParams->getSiteUrl(), '/'),
             'TYPO3_REQUEST_URL' => $normalizedParams->getRequestUrl(),
-            'TSFE' => ['pageArguments' => $GLOBALS['TSFE']->pageArguments, 'page' => $GLOBALS['TSFE']->page],
+            'TSFE' => ['pageArguments' => $GLOBALS['TSFE']->pageArguments, 'page' => $this->request->getAttribute('frontend.page.information')->getPageRecord()],
         ];
 
         // prepare response
@@ -131,16 +132,16 @@ class ApiController extends ActionController
 
         // hydra link headers (@see: https://www.hydra-cg.com/spec/latest/core/#example-16-discovering-hydra-api-documentation-documents)
         if (is_array($this->settings['apiDocumentation']['keys'])) {
-            if (array_key_exists($GLOBALS['TSFE']->id, $this->settings['apiDocumentation']['keys'])) {
-                $apiDocumentationKey = $this->settings['apiDocumentation']['keys'][$GLOBALS['TSFE']->id];
+            if (array_key_exists($this->request->getAttribute('frontend.page.information')->getId(), $this->settings['apiDocumentation']['keys'])) {
+                $apiDocumentationKey = $this->settings['apiDocumentation']['keys'][$this->request->getAttribute('frontend.page.information')->getId()];
             } else {
                 $apiDocumentationKey = $this->settings['apiDocumentation']['keys'][0];
             }
 
-            $uriBuilder = GeneralUtility::makeInstance(UriBuilder::class);
+            $uriBuilder = $this->uriBuilder;
             $uri = $uriBuilder
               ->reset()
-              ->setTargetPageUid($GLOBALS['TSFE']->id)
+              ->setTargetPageUid($this->request->getAttribute('frontend.page.information')->getId())
               ->setArguments(['type' => '2014'])
               ->uriFor('about', ['apiDocumentation' => $apiDocumentationKey], 'Api', 'lod', 'api');
             $apiDocumentationPath = preg_replace('/(\?|\&)(cHash)(.*)$/', '', $uri);

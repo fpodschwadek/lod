@@ -38,6 +38,9 @@ use TYPO3\CMS\Core\Utility\{
 
 class DataHandler
 {
+    public function __construct(private readonly \TYPO3\CMS\Core\Database\ConnectionPool $connectionPool)
+    {
+    }
     /**
      * Ensures that all fields in statement table are in sync depending on the editing context (IRRE or other)
      *
@@ -335,7 +338,7 @@ class DataHandler
                 $generatedIdentifier = $generatorService->generateIdentifier($generatorName, $generatorConfiguration, $record);
 
                 // update record with generated identifier
-                GeneralUtility::makeInstance(ConnectionPool::class)
+                $this->connectionPool
                     ->getConnectionForTable($table)
                     ->update(
                         $table,
@@ -372,7 +375,7 @@ class DataHandler
         }
         array_key_exists('prefix', $namespace) ? $prefixValue = $namespace['prefix'] . ':' . $iri['value'] : $prefixValue = $iri['value'];
         // update record
-        GeneralUtility::makeInstance(ConnectionPool::class)
+        $this->connectionPool
             ->getConnectionForTable('tx_lod_domain_model_iri')
             ->update(
                 'tx_lod_domain_model_iri',

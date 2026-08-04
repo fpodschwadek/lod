@@ -18,6 +18,9 @@ use TYPO3\CMS\Core\Utility\GeneralUtility;
  */
 class EnhancedTableList extends AbstractNode
 {
+    public function __construct(private readonly \TYPO3\CMS\Core\Imaging\IconFactory $iconFactory)
+    {
+    }
     /**
      * Render table buttons
      *
@@ -37,7 +40,7 @@ class EnhancedTableList extends AbstractNode
             return $result;
         }
 
-        $iconFactory = GeneralUtility::makeInstance(IconFactory::class);
+        $iconFactory = $this->iconFactory;
         $allowed = GeneralUtility::trimExplode(',', $config['allowed'], true);
         $allowedTablesHtml = [];
         foreach ($allowed as $tableName) {
@@ -48,7 +51,7 @@ class EnhancedTableList extends AbstractNode
                 $allowedTablesHtml[] = '</span>';
             } else {
                 $label = $languageService->sL($GLOBALS['TCA'][$tableName]['ctrl']['title']);
-                $icon = $iconFactory->getIconForRecord($tableName, [], Icon::SIZE_SMALL)->render();
+                $icon = $iconFactory->getIconForRecord($tableName, [], \TYPO3\CMS\Core\Imaging\IconSize::SMALL)->render();
                 // @metacontext: decouple element browser from linked record lists
                 /*
                 if ((bool)($config['fieldControl']['elementBrowser']['disabled'] ?? false)) {

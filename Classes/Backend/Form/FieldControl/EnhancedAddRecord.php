@@ -18,6 +18,9 @@ use TYPO3\CMS\Core\Utility\{
  */
 class EnhancedAddRecord extends AbstractNode
 {
+    public function __construct(private readonly \TYPO3\CMS\Backend\Routing\UriBuilder $uriBuilder)
+    {
+    }
     /**
      * Add button control
      *
@@ -100,9 +103,9 @@ class EnhancedAddRecord extends AbstractNode
                 'field' => $this->data['fieldName'],
                 'uid' => $this->data['databaseRow']['uid'],
                 'flexFormPath' => $flexFormPath,
-                'hmac' => GeneralUtility::hmac('editform' . $itemName, 'wizard_js'),
+                'hmac' => \TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance(\TYPO3\CMS\Core\Crypto\HashService::class)->hmac('editform' . $itemName, 'wizard_js'),
                 'fieldChangeFunc' => $parameterArray['fieldChangeFunc'],
-                'fieldChangeFuncHash' => GeneralUtility::hmac(serialize($parameterArray['fieldChangeFunc']), 'backend-link-browser'),
+                'fieldChangeFuncHash' => \TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance(\TYPO3\CMS\Core\Crypto\HashService::class)->hmac(serialize($parameterArray['fieldChangeFunc']), 'backend-link-browser'),
                 //                'returnUrl' => $this->data['returnUrl'],
             ],
         ];
@@ -110,7 +113,7 @@ class EnhancedAddRecord extends AbstractNode
         $id = StringUtility::getUniqueId('t3js-formengine-fieldcontrol-');
 
         /** @var \TYPO3\CMS\Backend\Routing\UriBuilder $uriBuilder */
-        $uriBuilder = GeneralUtility::makeInstance(\TYPO3\CMS\Backend\Routing\UriBuilder::class);
+        $uriBuilder = $this->uriBuilder;
 
         // @metacontext: include JS module and window parameters for record creation popup
         return [

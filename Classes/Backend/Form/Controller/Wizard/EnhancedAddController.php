@@ -85,6 +85,9 @@ class EnhancedAddController
      * @var string
      */
     protected $closeWindow = '<script>close();</script>';
+    public function __construct(private readonly \TYPO3\CMS\Backend\Routing\UriBuilder $uriBuilder)
+    {
+    }
 
     /**
      * Injects the request object for the current request or subrequest
@@ -223,7 +226,7 @@ class EnhancedAddController
         /** @var \TYPO3\CMS\Core\Http\NormalizedParams */
         $normalizedParams = $request->getAttribute('normalizedParams');
         /** @var \TYPO3\CMS\Backend\Routing\UriBuilder $uriBuilder */
-        $uriBuilder = GeneralUtility::makeInstance(UriBuilder::class);
+        $uriBuilder = $this->uriBuilder;
         $redirectUrl = (string)$uriBuilder->buildUriFromRoute('record_edit', [
             'returnEditConf' => 1,
             'edit[' . $this->P['params']['table'] . '][' . $this->pid . ']' => 'new',

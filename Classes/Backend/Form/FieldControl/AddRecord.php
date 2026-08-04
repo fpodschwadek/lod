@@ -30,6 +30,9 @@ use TYPO3\CMS\Core\Utility\{
  */
 class AddRecord extends AbstractNode
 {
+    public function __construct(private readonly \TYPO3\CMS\Backend\Routing\UriBuilder $uriBuilder)
+    {
+    }
     /**
      * Add button control
      *
@@ -106,7 +109,7 @@ class AddRecord extends AbstractNode
         $id = StringUtility::getUniqueId('t3js-formengine-fieldcontrol-');
 
         /** @var \TYPO3\CMS\Backend\Routing\UriBuilder $uriBuilder */
-        $uriBuilder = GeneralUtility::makeInstance(\TYPO3\CMS\Backend\Routing\UriBuilder::class);
+        $uriBuilder = $this->uriBuilder;
 
         /*
                 $onClick = [];
