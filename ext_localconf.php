@@ -22,6 +22,16 @@ use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Extbase\Utility\ExtensionUtility;
 
 // PLUGINS
+//
+// All plugins are registered as content elements (own "CType") rather than as the
+// legacy "list_type" sub type of CType "list". The "list_type" plugin sub type was
+// deprecated in TYPO3 13.4 (@see Changelog 13.4, #105076) and will be removed in
+// TYPO3 v14. Registering as a content element makes TYPO3 generate the TypoScript
+// object "tt_content.lod_<pluginname>" (a "lib.contentElement" copy with the Extbase
+// plugin at ".20") instead of "tt_content.list.20.lod_<pluginname>".
+//
+// Existing "tt_content" records are migrated by the upgrade wizard
+// @see \Digicademy\Lod\Updates\DigicademyLodCTypeMigration
 
 ExtensionUtility::configurePlugin(
     'Lod',
@@ -31,7 +41,8 @@ ExtensionUtility::configurePlugin(
     ],
     [
         VocabularyController::class => '',
-    ]
+    ],
+    ExtensionUtility::PLUGIN_TYPE_CONTENT_ELEMENT
 );
 
 ExtensionUtility::configurePlugin(
@@ -42,7 +53,8 @@ ExtensionUtility::configurePlugin(
     ],
     [
         ApiController::class => 'about',
-    ]
+    ],
+    ExtensionUtility::PLUGIN_TYPE_CONTENT_ELEMENT
 );
 
 ExtensionUtility::configurePlugin(
@@ -53,7 +65,8 @@ ExtensionUtility::configurePlugin(
     ],
     [
         SerializerController::class => '',
-    ]
+    ],
+    ExtensionUtility::PLUGIN_TYPE_CONTENT_ELEMENT
 );
 
 // REGISTERES URI RESOLVER

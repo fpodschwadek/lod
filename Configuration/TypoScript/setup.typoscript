@@ -1,5 +1,12 @@
 # libraries
 
+# Renders the first LOD plugin found on the current page, whichever it is.
+#
+# The plugins are registered as content elements, so their signature ("lod_api",
+# "lod_vocabulary", ...) lives in the "CType" field. Up to TYPO3 12 they were
+# registered as the "list_type" sub type of CType "list" and this library keyed on
+# "list_type" instead; that sub type was deprecated in TYPO3 13.4 (#105076) and the
+# records were migrated by \Digicademy\Lod\Updates\DigicademyLodCTypeMigration.
 lib.tx_lod.plugin = CONTENT
 lib.tx_lod.plugin {
   table = tt_content
@@ -7,27 +14,28 @@ lib.tx_lod.plugin {
     pidInList = this
     max = 1
     orderBy = sorting
-    where = list_type LIKE ###list_type###
+    # Note: "_" is a single-character wildcard in SQL LIKE, so this deliberately
+    # loose pattern matches every content element whose CType starts with "lod".
+    where = CType LIKE ###CType###
     markers {
-      list_type.value = lod_%
+      CType.value = lod_%
     }
   }
+  # Dispatch to the matching Extbase plugin by content element type.
   renderObj = CASE
   renderObj {
-    key.field = list_type
+    key.field = CType
     lod_api = USER
     lod_api {
       userFunc = TYPO3\CMS\Extbase\Core\Bootstrap->run
       extensionName = Lod
       pluginName = Api
-      vendorName = Digicademy
     }
     lod_vocabulary = USER
     lod_vocabulary {
       userFunc = TYPO3\CMS\Extbase\Core\Bootstrap->run
       extensionName = Lod
       pluginName = Vocabulary
-      vendorName = Digicademy
     }
   }
 }
