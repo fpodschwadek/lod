@@ -80,13 +80,9 @@ class ItemMappingService
         if ($result['row']) {
             $formDataProvider = GeneralUtility::makeInstance(TcaRecordTitle::class);
             $titleLabel = $GLOBALS['TCA'][$result['tablename']]['ctrl']['title'];
-            if (($GLOBALS['TSFE'] ?? null) !== null) {
-                $translatedTitle = $GLOBALS['TSFE']->sL($titleLabel);
-            } else {
-                $translatedTitle = $this->languageServiceFactory
-                    ->create('default')
-                    ->sL($titleLabel);
-            }
+            $translatedTitle = $this->languageServiceFactory
+                ->create('default')
+                ->sL($titleLabel);
             $tcaProcessing = $formDataProvider->addData([
                 'databaseRow' => $result['row'],
                 'processedTca' => $GLOBALS['TCA'][$result['tablename']],
