@@ -33,7 +33,7 @@
     "hydra:title": "LOD Resources",
     "hydra:description": "TYPO3 Linked Data API",
     "hydra:entrypoint": <f:format.raw>{</f:format.raw>
-        "@id": "{environment.TSFE.page.slug}/.json",
+        "@id": "{environment.page.slug}/.json",
         "@type": "@id"
     <f:format.raw>},
     "hydra:supportedClass": [

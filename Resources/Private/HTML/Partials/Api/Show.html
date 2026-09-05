@@ -162,18 +162,18 @@
 
     <p>
         <f:link.page class="button submit"
-            pageUid="{environment.TSFE.pageArguments.pageId}"
+            pageUid="{environment.pageArguments.pageId}"
             section="{resource.value}"
             additionalParams="{
                 type : '1991',
                 tx_lod_api : {
-                    query : environment.TSFE.pageArguments.arguments.tx_lod_api__query,
-                    subject : environment.TSFE.pageArguments.arguments.tx_lod_api__subject,
-                    predicate : environment.TSFE.pageArguments.arguments.tx_lod_api__predicate,
-                    object : environment.TSFE.pageArguments.arguments.tx_lod_api__object,
-                    limit : environment.TSFE.pageArguments.arguments.tx_lod_api__limit,
-                    sorting : environment.TSFE.pageArguments.arguments.tx_lod_api__sorting,
-                    page : '{f:if(condition : \'{environment.TSFE.pageArguments.arguments.tx_lod_api__page}\', then : \'{environment.TSFE.pageArguments.arguments.tx_lod_api__page}\', else : \'1\')}'}}">
+                    query : environment.pageArguments.arguments.tx_lod_api__query,
+                    subject : environment.pageArguments.arguments.tx_lod_api__subject,
+                    predicate : environment.pageArguments.arguments.tx_lod_api__predicate,
+                    object : environment.pageArguments.arguments.tx_lod_api__object,
+                    limit : environment.pageArguments.arguments.tx_lod_api__limit,
+                    sorting : environment.pageArguments.arguments.tx_lod_api__sorting,
+                    page : '{f:if(condition : \'{environment.pageArguments.arguments.tx_lod_api__page}\', then : \'{environment.pageArguments.arguments.tx_lod_api__page}\', else : \'1\')}'}}">
             <f:translate key="api.show.back" />
         </f:link.page>
     </p>

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /***************************************************************
  *
  *  Copyright notice
@@ -27,227 +29,222 @@
 
 namespace Digicademy\Lod\Service;
 
-use TYPO3\CMS\Core\Http\ServerRequest;
+use Digicademy\Lod\Dto\ContentNegotiationResult;
+use Psr\Http\Message\ServerRequestInterface;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 /**
- * Provides content negotiation based on ACCEPT header and TYPO3 page type
+ * Provides content negotiation between the MIME types a client accepts and the document
+ * representations this installation offers.
+ *
+ * The available representations are declared in TypoScript as
+ * `plugin.tx_lod.settings.contentNegotiation`, next to the PAGE object that renders them:
+ *
+ *     plugin.tx_lod.settings.contentNegotiation {
+ *       default = 1991
+ *       types {
+ *         1991 {
+ *           mimeType = text/html
+ *           format = html
+ *         }
+ *       }
+ *     }
+ *
+ * Up to TYPO3 v12 this map was read from the `types.` entry of the frontend TypoScript setup
+ * array, which `TemplateService::generateConfig()` derived from the registered PAGE objects.
+ * `TemplateService` was removed in TYPO3 v13 (#100963) and nothing recreates `types.`, so the
+ * map is now declared explicitly. That also decouples the Fluid format from the PAGE object's
+ * TypoScript variable name, which used to double as the format by convention.
+ *
+ * This service is stateless: everything it needs arrives as a method argument. It must not hold
+ * the request, both because it is a shared service and because request-bound services do not
+ * survive into TYPO3 v14.
  */
 class ContentNegotiationService
 {
     /**
-     * MIME types accepted by the client
+     * MIME type assumed when a client sends no usable Accept header
+     */
+    public const DEFAULT_MIME_TYPE = 'text/html';
+
+    /**
+     * Fluid format assumed when no representation could be negotiated
+     */
+    public const DEFAULT_FORMAT = 'html';
+
+    /**
+     * Negotiates the document representation to serve for the given request.
      *
-     * @var array
+     * @param ServerRequestInterface $request  Current request; supplies the Accept header and the page type
+     * @param array                  $settings The `contentNegotiation` settings sub array
      */
-    protected $acceptedMimeTypes = [];
+    public function negotiate(ServerRequestInterface $request, array $settings): ContentNegotiationResult
+    {
+        $types = $this->getConfiguredTypes($settings);
+        $requestedPageType = $this->getRequestedPageType($request);
+        $requestedMimeType = $types[$requestedPageType]['mimeType'] ?? null;
 
-    /**
-     * MIME types available on the server (configured TYPO3 page types)
-     *
-     * @var array
-     */
-    protected $availableMimeTypes = [];
+        // the request already names a representation, so there is nothing to negotiate
+        if ($requestedPageType > 0) {
+            return new ContentNegotiationResult(
+                $requestedPageType,
+                $requestedPageType,
+                $requestedMimeType ?? self::DEFAULT_MIME_TYPE,
+                $types[$requestedPageType]['format'] ?? self::DEFAULT_FORMAT,
+                $requestedMimeType
+            );
+        }
 
-    /**
-     * Negotiated content type (defaults to text/html)
-     *
-     * @var string
-     */
-    protected $contentType = 'text/html';
-
-    /**
-     * Extbase format
-     *
-     * @var string
-     */
-    protected $format = 'html';
-
-    /**
-     * Frontend TypoScript setup array.
-     * @var array
-     */
-    protected $typoScriptSetup;
-
-    /**
-     * Content negotiation: Determines the best mime type for a response by negotiating
-     * between mime types accepted by the client and mime types available from TypoScript.
-     */
-    public function __construct(
-        protected readonly ServerRequest $request
-    ) {
-        $this->typoScriptSetup = $GLOBALS['TYPO3_REQUEST']->getAttribute('frontend.typoscript')->getSetupArray();
-        //To do: make sure the request is passed on to this service!
-
-        $pageType = $request->getQueryParams()['type'] ?? $GLOBALS['TYPO3_REQUEST']->getAttribute('routing')->getPageType();
-
-        $this->setAcceptedMimeTypes();
-        $this->setAvailableMimeTypes();
-
-        // if a page type is already set, format and content type can be set directly
-        if ($pageType > 0) {
-            $this->setContentType($this->availableMimeTypes[$pageType]);
-            $this->setFormat($this->typoScriptSetup['types.'][$pageType]);
-
-            // if no page type is set compare accepted mime types with available mime types and set best format
-            // reminder: $this->acceptedMimeTypes is in order from best to least format
-        } else {
-            foreach ($this->acceptedMimeTypes as $mimeType) {
-                if (in_array($mimeType, $this->availableMimeTypes)) {
-                    $type = array_search($mimeType, $this->availableMimeTypes);
-                    if ($type == 0) {
-                        continue;
-                    }
-                    $this->setFormat($this->typoScriptSetup['types.'][$type]);
-
-                    $this->setContentType($this->availableMimeTypes[$type]);
-                    break;
-                }
+        // the abstract resource was requested: pick the best representation the client accepts
+        $availableMimeTypes = $this->getMimeTypeMap($types);
+        foreach ($this->getAcceptedMimeTypes($request) as $mimeType) {
+            $pageType = array_search($mimeType, $availableMimeTypes, true);
+            if ($pageType !== false) {
+                return new ContentNegotiationResult(
+                    0,
+                    (int)$pageType,
+                    $types[$pageType]['mimeType'],
+                    $types[$pageType]['format'],
+                    $requestedMimeType
+                );
             }
         }
-    }
 
-    /**
-     * Getter for content type
-     *
-     * @return string
-     */
-    public function getContentType(): string
-    {
-        return $this->contentType;
-    }
-
-    /**
-     * Setter for content type
-     *
-     * @param string $contentType
-     */
-    public function setContentType(string $contentType): void
-    {
-        $this->contentType = $contentType;
-    }
-
-    /**
-     * Getter for format
-     *
-     * @return string
-     */
-    public function getFormat(): string
-    {
-        return $this->format;
-    }
-
-    /**
-     * Setter for format
-     * @param string $format
-     */
-    public function setFormat(string $format): void
-    {
-        $this->format = $format;
-    }
-
-    /**
-     * Getter for accepted mime types
-     *
-     * @return array
-     */
-    public function getAcceptedMimeTypes(): array
-    {
-        return $this->acceptedMimeTypes;
-    }
-
-    /**
-     * Setter for accepted mime types:
-     * Compiles an array of accepted mime types from client
-     */
-    public function setAcceptedMimeTypes(): void
-    {
-        // Use PSR-7 request to get Accept header
-        $httpAcceptHeader = $this->request->getHeaderLine('Accept');
-        if ($httpAcceptHeader) {
-            $this->acceptedMimeTypes = $this->processAcceptHeader($httpAcceptHeader);
-        } else {
-            $this->acceptedMimeTypes[] = 'text/html';
+        // nothing the client asked for is on offer: fall back to the configured default
+        $fallbackPageType = $this->getFallbackPageType($settings, $types);
+        if ($fallbackPageType > 0) {
+            return new ContentNegotiationResult(
+                0,
+                $fallbackPageType,
+                $types[$fallbackPageType]['mimeType'],
+                $types[$fallbackPageType]['format'],
+                $requestedMimeType
+            );
         }
+
+        // no representation is configured at all; the caller has to render the request as it is
+        return new ContentNegotiationResult(0, 0, self::DEFAULT_MIME_TYPE, self::DEFAULT_FORMAT, $requestedMimeType);
     }
 
     /**
-     * Getter for available mime types
+     * Compiles the MIME types a client accepts, best match first.
      *
-     * @return array
+     * @return string[]
      */
-    public function getAvailableMimeTypes(): array
+    public function getAcceptedMimeTypes(ServerRequestInterface $request): array
     {
-        return $this->availableMimeTypes;
-    }
+        $acceptHeader = $request->getHeaderLine('Accept');
+        if ($acceptHeader === '') {
+            return [self::DEFAULT_MIME_TYPE];
+        }
 
-    /**
-     * Setter for available mime types:
-     * Compiles available mime types by page type from TypoScript configuration
-     * (header: Content-type:XY must be set in TypoScript)
-     */
-    public function setAvailableMimeTypes(): void
-    {
-        foreach ($this->typoScriptSetup['types.'] as $key => $type) {
-            if ($type == 'page') {
+        $mediaRanges = [];
+        foreach (GeneralUtility::trimExplode(',', $acceptHeader, true) as $mediaRange) {
+            $parameters = GeneralUtility::trimExplode(';', $mediaRange, true);
+            $mimeType = (string)array_shift($parameters);
+            if ($mimeType === '') {
                 continue;
             }
-            $type = $type . '.';
-            if (
-                $this->typoScriptSetup[$type]['typeNum'] == $key
-                && $this->typoScriptSetup[$type]['config.']['additionalHeaders.']
-            ) {
-                $additionalHeaders = $this->typoScriptSetup[$type]['config.']['additionalHeaders.'];
-                foreach ($additionalHeaders as $additionalHeader) {
-                    if (preg_match('/Content-type:/', $additionalHeader['header'])) {
-                        $this->availableMimeTypes[$key] = str_replace('Content-type:', '', $additionalHeader['header']);
-                    }
+            $quality = 1.0;
+            foreach ($parameters as $parameter) {
+                if (str_starts_with($parameter, 'q=')) {
+                    $quality = (float)substr($parameter, 2);
                 }
             }
+            $mediaRanges[] = ['mimeType' => $mimeType, 'quality' => $quality];
         }
+
+        // usort() is stable as of PHP 8.0, so media ranges of equal quality keep header order
+        usort($mediaRanges, static fn(array $left, array $right): int => $right['quality'] <=> $left['quality']);
+
+        return array_column($mediaRanges, 'mimeType');
     }
 
     /**
-     * @param string $httpAcceptHeader
-     * @return array
-     */
-    private function processAcceptHeader(string $httpAcceptHeader): array
-    {
-        $acceptedMediaTypes = GeneralUtility::trimExplode(',', $httpAcceptHeader);
-        $weightedMediaTypes = [];
-        foreach ($acceptedMediaTypes as $key => $mediaType) {
-            if (strpos($mediaType, ';q')) {
-                $mediaTypeWithQFactor = GeneralUtility::trimExplode(';', $mediaType);
-                $qFactor = substr($mediaTypeWithQFactor[1], 2);
-                $weightedMediaTypes[$qFactor][] = $mediaTypeWithQFactor[0];
-            } else {
-                $weightedMediaTypes['1.0'][] = $mediaType;
-            }
-        }
-        krsort($weightedMediaTypes);
-
-        // call_user_func_array will interpret the top-level array keys as
-        // parameter names to be passed into the array_merge. To avoid errors,
-        // we make a keyless array from the values.
-        $sortedHttpAcceptHeaders = call_user_func_array('array_merge', array_values($weightedMediaTypes));
-
-        return $sortedHttpAcceptHeaders;
-    }
-
-    /**
-     * @param string $httpContentType
-     * @return array
+     * Splits a Content-Type header value into its MIME type and charset.
+     *
+     * @return array{mime: string, charset?: string}
      */
     public function processContentType(string $httpContentType): array
     {
         $splitHttpContentType = GeneralUtility::trimExplode(';', $httpContentType);
-        if (count($splitHttpContentType) == 2) {
-            $contentType['mime'] = $splitHttpContentType[0];
+
+        $contentType = ['mime' => $splitHttpContentType[0]];
+        if (count($splitHttpContentType) === 2) {
             $contentType['charset'] = trim(str_replace('charset=', '', $splitHttpContentType[1]));
-        } else {
-            $contentType['mime'] = $splitHttpContentType[0];
         }
 
         return $contentType;
+    }
+
+    /**
+     * Normalises the configured representations into `[pageType => ['mimeType' => ..., 'format' => ...]]`.
+     *
+     * Incompletely configured entries are skipped rather than half applied, so a typo in one
+     * representation cannot silently redirect clients to it.
+     *
+     * @return array<int, array{pageType: int, mimeType: string, format: string}>
+     */
+    private function getConfiguredTypes(array $settings): array
+    {
+        $types = [];
+
+        foreach ((array)($settings['types'] ?? []) as $pageType => $configuration) {
+            $pageType = (int)$pageType;
+            $mimeType = is_array($configuration) ? trim((string)($configuration['mimeType'] ?? '')) : '';
+            $format = is_array($configuration) ? trim((string)($configuration['format'] ?? '')) : '';
+            if ($pageType <= 0 || $mimeType === '' || $format === '') {
+                continue;
+            }
+            $types[$pageType] = ['pageType' => $pageType, 'mimeType' => $mimeType, 'format' => $format];
+        }
+
+        return $types;
+    }
+
+    /**
+     * Maps the configured representations to `[pageType => mimeType]`.
+     *
+     * The `pageType` index key is what keeps the page types as array keys; array_column() would
+     * otherwise renumber them and turn every lookup into a meaningless positional index.
+     *
+     * @param array<int, array{pageType: int, mimeType: string, format: string}> $types
+     * @return array<int, string>
+     */
+    private function getMimeTypeMap(array $types): array
+    {
+        return array_column($types, 'mimeType', 'pageType');
+    }
+
+    /**
+     * Page type of the current request, either from the `type` query parameter or from the
+     * page type the router resolved out of the URL suffix.
+     */
+    private function getRequestedPageType(ServerRequestInterface $request): int
+    {
+        $pageType = $request->getQueryParams()['type'] ?? null;
+        if (!is_scalar($pageType)) {
+            $pageType = $request->getAttribute('routing')?->getPageType() ?? 0;
+        }
+
+        return (int)$pageType;
+    }
+
+    /**
+     * Representation to redirect to when the client accepts nothing this installation offers.
+     *
+     * @param array<int, array{pageType: int, mimeType: string, format: string}> $types
+     */
+    private function getFallbackPageType(array $settings, array $types): int
+    {
+        $configuredDefault = (int)($settings['default'] ?? 0);
+        if (isset($types[$configuredDefault])) {
+            return $configuredDefault;
+        }
+
+        // no explicit default: serve whichever representation carries the default MIME type
+        $pageType = array_search(self::DEFAULT_MIME_TYPE, $this->getMimeTypeMap($types), true);
+
+        return $pageType === false ? 0 : (int)$pageType;
     }
 }

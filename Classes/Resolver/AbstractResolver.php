@@ -27,6 +27,7 @@
 
 namespace Digicademy\Lod\Resolver;
 
+use Psr\Http\Message\ServerRequestInterface;
 use TYPO3\CMS\Frontend\ContentObject\ContentObjectRenderer;
 
 abstract class AbstractResolver
@@ -34,11 +35,17 @@ abstract class AbstractResolver
     /**
      * AbstractResolver constructor
      *
-     * @param array $settings
-     * @param $contentObjectRenderer ContentObjectRenderer
+     * Resolvers are instantiated per resolve() call rather than through the DI container, so the
+     * current request is handed in explicitly. Reading it from a global is not an option: the
+     * frontend controller globals resolvers used to rely on are gone in TYPO3 v13 and later.
+     *
+     * @param array                  $settings
+     * @param ContentObjectRenderer  $contentObjectRenderer
+     * @param ServerRequestInterface $request
      */
     public function __construct(
         protected array $settings,
-        protected ContentObjectRenderer $contentObjectRenderer
+        protected ContentObjectRenderer $contentObjectRenderer,
+        protected ServerRequestInterface $request
     ) {}
 }

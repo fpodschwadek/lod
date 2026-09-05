@@ -28,8 +28,10 @@
 namespace Digicademy\Lod\Resolver;
 
 use Digicademy\Lod\Domain\Model\Representation;
+use TYPO3\CMS\Core\Domain\Repository\PageRepository;
+use TYPO3\CMS\Core\Site\Entity\NullSite;
+use TYPO3\CMS\Core\TypoScript\PageTsConfigFactory;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
-use TYPO3\CMS\Frontend\Controller\TypoScriptFrontendController;
 
 class T3Resolver extends AbstractResolver implements ResolverInterface
 {
@@ -42,30 +44,28 @@ class T3Resolver extends AbstractResolver implements ResolverInterface
         // @TODO: call different typolink handlers according to $representation->getAuthority();
 
         $url = '';
-        $tsfe = $this->getTypoScriptFrontendController();
-        $pageTsConfig = $tsfe->getPagesTSconfig();
+        $pageTsConfig = $this->getPageTsConfig();
         $linkDetails = $this->getLinkDetails($representation->getQuery());
 
         if (!empty($linkDetails['identifier']) && !empty($linkDetails['uid'])) {
             $configurationKey = $linkDetails['identifier'] . '.';
-            $configuration = $GLOBALS['TYPO3_REQUEST']->getAttribute('frontend.typoscript')->getSetupArray()['config.']['recordLinks.'];
-            $linkHandlerConfiguration = $pageTsConfig['TCEMAIN.']['linkHandler.'][$configurationKey]['configuration.'];
-            $typoScriptConfiguration = $configuration[$configurationKey]['typolink.'];
+            $configuration = $this->request->getAttribute('frontend.typoscript')?->getSetupArray()['config.']['recordLinks.'] ?? [];
+            $linkHandlerConfiguration = $pageTsConfig['TCEMAIN.']['linkHandler.'][$configurationKey]['configuration.'] ?? [];
+            $typoScriptConfiguration = $configuration[$configurationKey]['typolink.'] ?? [];
             $typoScriptConfiguration['forceAbsoluteUrl'] = '1';
 
             if ($configuration && $linkHandlerConfiguration && $typoScriptConfiguration) {
-                $record = \TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance(\TYPO3\CMS\Core\Domain\Repository\PageRepository::class)->checkRecord($linkHandlerConfiguration['table'], $linkDetails['uid']);
+                $record = GeneralUtility::makeInstance(PageRepository::class)->checkRecord($linkHandlerConfiguration['table'], $linkDetails['uid']);
 
                 if ($record) {
                     $representation->getFragment() ? $record['fragment'] = $representation->getFragment() : false;
                     $this->contentObjectRenderer->start($record, $linkHandlerConfiguration['table']);
-                    $url = $this->contentObjectRenderer->typoLink_URL($typoScriptConfiguration);
+                    $url = $this->contentObjectRenderer->createUrl($typoScriptConfiguration);
 
-                    // in some cases (e.g. TYPO3 9 with site configuration) forceAbsoluteUrl seems not to be
-                    // evaluated by typoLink_URL function; therefore append request host to make sure that the
-                    // url is absolute
-                    if (!preg_match('#://#', $url)) {
-                        $url = rtrim($GLOBALS['TYPO3_REQUEST']->getAttribute('normalizedParams')->getSiteUrl(), '/') . $url;
+                    // in some cases forceAbsoluteUrl seems not to be evaluated by the link building;
+                    // therefore append request host to make sure that the url is absolute
+                    if ($url !== '' && !preg_match('#://#', $url)) {
+                        $url = rtrim($this->request->getAttribute('normalizedParams')->getSiteUrl(), '/') . $url;
                     }
                 }
             }
@@ -95,10 +95,25 @@ class T3Resolver extends AbstractResolver implements ResolverInterface
     }
 
     /**
-     * @return TypoScriptFrontendController
+     * Resolves the page TSconfig of the current page in frontend scope.
+     *
+     * `TypoScriptFrontendController->getPagesTSconfig()` used to provide this but was removed in
+     * TYPO3 v13 (#100963). This mirrors how the core link builders obtain page TSconfig now.
+     *
+     * @return array
      */
-    protected function getTypoScriptFrontendController(): TypoScriptFrontendController
+    protected function getPageTsConfig(): array
     {
-        return $GLOBALS['TSFE'];
+        $pageInformation = $this->request->getAttribute('frontend.page.information');
+        if ($pageInformation === null) {
+            return [];
+        }
+
+        $fullRootLine = $pageInformation->getRootLine();
+        ksort($fullRootLine);
+
+        return GeneralUtility::makeInstance(PageTsConfigFactory::class)
+            ->create($fullRootLine, $this->request->getAttribute('site') ?? new NullSite())
+            ->getPageTsConfigArray();
     }
 }

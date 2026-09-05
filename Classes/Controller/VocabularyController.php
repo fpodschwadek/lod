@@ -108,7 +108,7 @@ class VocabularyController extends ActionController
         $environment = [
             'TYPO3_SITE_BASE_URL' => rtrim($normalizedParams->getSiteUrl(), '/'),
             'TYPO3_REQUEST_URL' => $normalizedParams->getRequestUrl(),
-            'TSFE' => ['pageArguments' => $GLOBALS['TSFE']->pageArguments],
+            'pageArguments' => $this->request->getAttribute('routing'),
         ];
         $this->view->assign('environment', $environment);
 

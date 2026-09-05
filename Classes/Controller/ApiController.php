@@ -34,12 +34,14 @@ use Digicademy\Lod\Domain\Repository\{
     IriRepository,
     StatementRepository
 };
+use Digicademy\Lod\Dto\ContentNegotiationResult;
 use Digicademy\Lod\Service\{
     ContentNegotiationService,
     ResolverService
 };
 use Psr\Http\Message\ResponseInterface;
-use TYPO3\CMS\Core\Http\ImmediateResponseException;
+use TYPO3\CMS\Core\Http\NormalizedParams;
+use TYPO3\CMS\Core\Http\PropagateResponseException;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Extbase\Mvc\Controller\ActionController;
 use TYPO3\CMS\Extbase\Mvc\Web\Routing\UriBuilder;
@@ -50,7 +52,10 @@ use TYPO3\CMS\Frontend\Page\PageAccessFailureReasons;
 class ApiController extends ActionController
 {
     /**
-     * @var Iri
+     * Resource the request is about; null until an "iri" argument has been resolved,
+     * and null again when that argument does not match any known IRI.
+     *
+     * @var Iri|null
      */
     protected $resource;
 
@@ -58,6 +63,13 @@ class ApiController extends ActionController
      * @var ResponseInterface
      */
     protected $response;
+
+    /**
+     * Outcome of content negotiation for the current request
+     *
+     * @var ContentNegotiationResult
+     */
+    protected ContentNegotiationResult $negotiation;
 
     /**
      * Initializes the controller and dependencies
@@ -68,6 +80,8 @@ class ApiController extends ActionController
      * @param StatementRepository         $statementRepository
      * @param ContentNegotiationService   $contentNegotiationService
      * @param ResolverService             $resolverService
+     * @param UriBuilder                  $uriBuilder
+     * @param ErrorController             $errorController
      */
     public function __construct(
         protected IriNamespaceRepository $iriNamespaceRepository,
@@ -76,8 +90,31 @@ class ApiController extends ActionController
         protected StatementRepository $statementRepository,
         protected ContentNegotiationService $contentNegotiationService,
         protected ResolverService $resolverService,
-        protected UriBuilder $uriBuilder
+        protected UriBuilder $uriBuilder,
+        protected ErrorController $errorController
     ) {}
+
+    /**
+     * Negotiates the document representation and pins the Fluid format for this request.
+     *
+     * This has to happen here rather than in the action: `ActionController::processRequest()` calls
+     * `initializeAction()` first but resolves the view -- and with it the template, its format and
+     * its file extension -- before the action body runs, so `withFormat()` inside an action is too
+     * late to influence template resolution. Up to TYPO3 v12 the format was pinned by setting
+     * `plugin.tx_lod.format` per page type from a TypoScript condition, which Extbase reads as the
+     * request's default format (`RequestBuilderDefaultValues::fromConfiguration()`). Deriving it
+     * from the negotiation instead keeps format and negotiated representation from disagreeing, and
+     * removes the last page type condition from this extension's TypoScript.
+     */
+    public function initializeAction(): void
+    {
+        $this->negotiation = $this->contentNegotiationService->negotiate(
+            $this->request,
+            (array)($this->settings['contentNegotiation'] ?? [])
+        );
+
+        $this->request = $this->request->withFormat($this->negotiation->format);
+    }
 
     /**
      * Main action and entry point of this controller. Returns metadata either about a single resource
@@ -91,19 +128,15 @@ class ApiController extends ActionController
      */
     public function aboutAction(): ResponseInterface
     {
-        // check if pageType is set (either via param or masked through PageTypeSuffix)
-        if ($this->request->getParsedBody()['type'] ?? $this->request->getQueryParams()['type'] ?? null) {
-            $pageType = $this->request->getParsedBody()['type'] ?? $this->request->getQueryParams()['type'] ?? null;
-        } elseif ($this->request->getAttribute('routing')->getPageType() > 0) {
-            $pageType = $this->request->getAttribute('routing')->getPageType();
-        } else {
-            $pageType = 0;
-        }
+        $pageInformation = $this->request->getAttribute('frontend.page.information');
 
-        // get configured mime types, expected content type and template format
-        $availableMimeTypes = $this->contentNegotiationService->getAvailableMimeTypes();
-        $contentType = $this->contentNegotiationService->getContentType();
-        $format = $this->contentNegotiationService->getFormat();
+        // Get an instance of NormalizedParams, which provides normalized server
+        // parameters and substitutes GeneralUtility::getIndpEnv().
+        $normalizedParams = $this->request->getAttribute('normalizedParams');
+
+        // the representation to serve was negotiated in initializeAction(); the result knows both
+        // the page type the request asked for and the page type the negotiation settled on
+        $negotiation = $this->negotiation;
 
         // if iri argument exists try to set resource
         if ($this->request->hasArgument('iri')) {
@@ -113,36 +146,32 @@ class ApiController extends ActionController
             );
         }
 
-        // Get an instance of NormalizedParams, which provides normalized server
-        // parameters and substitutes GeneralUtility::getIndpEnv().
-        $normalizedParams = $this->request->getAttribute('normalizedParams');
-
         // set environment
         $environment = [
             'TYPO3_SITE_BASE_URL' => rtrim($normalizedParams->getSiteUrl(), '/'),
             'TYPO3_REQUEST_URL' => $normalizedParams->getRequestUrl(),
-            'TSFE' => ['pageArguments' => $GLOBALS['TSFE']->pageArguments, 'page' => $this->request->getAttribute('frontend.page.information')->getPageRecord()],
+            'pageArguments' => $this->request->getAttribute('routing'),
+            'page' => $pageInformation->getPageRecord(),
         ];
 
         // prepare response
         $this->response = $this->responseFactory->createResponse();
-        if (array_key_exists($pageType, $availableMimeTypes)) {
-            $this->response = $this->response->withAddedHeader('Content-Type', $availableMimeTypes[$pageType] . '; charset=utf-8');
+        if ($negotiation->requestedMimeType !== null) {
+            $this->response = $this->response->withHeader('Content-Type', $negotiation->requestedMimeType . '; charset=utf-8');
         }
 
         // hydra link headers (@see: https://www.hydra-cg.com/spec/latest/core/#example-16-discovering-hydra-api-documentation-documents)
-        if (is_array($this->settings['apiDocumentation']['keys'])) {
-            if (array_key_exists($this->request->getAttribute('frontend.page.information')->getId(), $this->settings['apiDocumentation']['keys'])) {
-                $apiDocumentationKey = $this->settings['apiDocumentation']['keys'][$this->request->getAttribute('frontend.page.information')->getId()];
+        if (is_array($this->settings['apiDocumentation']['keys'] ?? null)) {
+            if (array_key_exists($pageInformation->getId(), $this->settings['apiDocumentation']['keys'])) {
+                $apiDocumentationKey = $this->settings['apiDocumentation']['keys'][$pageInformation->getId()];
             } else {
                 $apiDocumentationKey = $this->settings['apiDocumentation']['keys'][0];
             }
 
-            $uriBuilder = $this->uriBuilder;
-            $uri = $uriBuilder
+            $uri = $this->uriBuilder
               ->reset()
-              ->setTargetPageUid($this->request->getAttribute('frontend.page.information')->getId())
-              ->setArguments(['type' => '2014'])
+              ->setTargetPageUid($pageInformation->getId())
+              ->setTargetPageType($this->getApiDocumentationPageType())
               ->uriFor('about', ['apiDocumentation' => $apiDocumentationKey], 'Api', 'lod', 'api');
             $apiDocumentationPath = preg_replace('/(\?|\&)(cHash)(.*)$/', '', $uri);
 
@@ -161,81 +190,11 @@ class ApiController extends ActionController
             $this->request = $this->request->withArguments($arguments);
         }
 
-        // if page type is set define Fluid template format directly
-        if ($pageType > 0) {
-            $this->request = $this->request->withFormat($format);
-
-            // if not redirect to URL including a negotiated page type
-        } else {
-            // make sure request url does not end in a slash
-            $requestUrl = $GLOBALS['TYPO3_REQUEST']->getAttributes()['normalizedParams']->getRequestUri();
-            $cleanRequestUrl = rtrim($requestUrl, '/');
-
-            // get current site configuration
-            if (method_exists($GLOBALS['TYPO3_REQUEST']->getAttributes()['site'], 'getConfiguration')) {
-                $siteConfiguration = $GLOBALS['TYPO3_REQUEST']->getAttributes()['site']->getConfiguration();
-            } else {
-                $siteConfiguration = [];
-            }
-
-            // get target page type via content negotiation
-            $targetPageType = array_search($contentType, $availableMimeTypes);
-
-            // generate url for redirection if routeEnhancers are configured
-            if (
-                array_key_exists('routeEnhancers', $siteConfiguration) &&
-                array_key_exists('PageTypeSuffix', $siteConfiguration['routeEnhancers']) &&
-                array_key_exists('map', $siteConfiguration['routeEnhancers']['PageTypeSuffix']) &&
-                in_array($targetPageType, $siteConfiguration['routeEnhancers']['PageTypeSuffix']['map'])
-            ) {
-                $targetPageTypeSuffix = array_search($targetPageType, $siteConfiguration['routeEnhancers']['PageTypeSuffix']['map']);
-
-                // possible tx_lod parameters from search or ld fragments
-                if (preg_match('/\?/', $cleanRequestUrl)) {
-                    $uriParts = GeneralUtility::trimExplode('?', $cleanRequestUrl);
-                    $uri = $uriParts[0] . $targetPageTypeSuffix . '?' . $uriParts[1];
-                } else {
-                    $uri = $cleanRequestUrl . $targetPageTypeSuffix;
-                }
-
-                // parameterized URI (no configured routeEnhancers)
-            } else {
-                if (preg_match('/\?/', $cleanRequestUrl)) {
-                    $typeParameterKeyword = '&type=';
-                } else {
-                    $typeParameterKeyword = '?type=';
-                }
-                $uri = $cleanRequestUrl . $typeParameterKeyword . $targetPageType;
-            }
-
-            // if called from BE without parameters and with routeEnhancers remove duplicate file endings
-            if (substr_count($uri, '.html/') >= 1) {
-                $uri = str_replace('.html/', '/', $uri);
-            }
-
-            // if dedicated representations for the resource are available go through each of them and
-            // check if accepted media type fits representation content type; if so call according resolver
-            if ($this->resource instanceof Iri && count($this->resource->getRepresentations()) > 0) {
-                foreach ($this->contentNegotiationService->getAcceptedMimeTypes() as $mimeType) {
-                    foreach ($this->resource->getRepresentations() as $key => $representation) {
-                        $representationContentType = $this->contentNegotiationService->processContentType($representation->getContentType());
-                        if ($representationContentType['mime'] == $mimeType && $representationContentType['mime'] == $contentType) {
-                            // call representation resolver service
-                            $url = $this->resolverService->resolve($representation, $this->settings['resolver']);
-                            if (GeneralUtility::isValidUrl($url)) {
-                                return $this->redirectToUri($url);
-                            }
-                        }
-                    }
-                    // if none of the representations fit redirect to a generated representation
-                    if ($mimeType == $contentType) {
-                        return $this->redirectToUri($uri);
-                    }
-                }
-                // otherwise redirect to a generated about representation
-            } else {
-                return $this->redirectToUri($uri);
-            }
+        // the abstract resource was requested rather than one of its document representations:
+        // redirect to the representation content negotiation picked
+        $redirect = $this->redirectToNegotiatedRepresentation($negotiation, $pageInformation->getId(), $normalizedParams);
+        if ($redirect instanceof ResponseInterface) {
+            return $redirect;
         }
 
         // general assignments for all sub actions
@@ -253,16 +212,11 @@ class ApiController extends ActionController
         // show action
         if ($this->request->hasArgument('iri')) {
             // if the resource exist, forward to show action, else send 404
-            if ($this->resource != null && $this->resource instanceof Iri) {
+            if ($this->resource instanceof Iri) {
                 $this->showAction($this->resource);
             } else {
                 // throw PSR-7 compliant error response
-                $response = GeneralUtility::makeInstance(ErrorController::class)->pageNotFoundAction(
-                    $GLOBALS['TYPO3_REQUEST'],
-                    'The requested page does not exist',
-                    ['code' => PageAccessFailureReasons::PAGE_NOT_FOUND]
-                );
-                throw new ImmediateResponseException($response, 2467342644);
+                throw new PropagateResponseException($this->pageNotFound(), 2467342644);
             }
             // api documentation action
         } elseif ($this->request->hasArgument('apiDocumentation')) {
@@ -287,12 +241,12 @@ class ApiController extends ActionController
         $arguments = $this->request->getArguments();
 
         // calculate pagination
-        ($arguments['limit']) ? $limit = (int)$arguments['limit'] : $limit = 50;
+        $limit = (int)($arguments['limit'] ?? 0) ?: 50;
         if ($limit > 500) {
             $limit = 500;
         }
 
-        if ($arguments['query'] || $arguments['subject'] || $arguments['predicate'] || $arguments['object']) {
+        if (($arguments['query'] ?? null) || ($arguments['subject'] ?? null) || ($arguments['predicate'] ?? null) || ($arguments['object'] ?? null)) {
             $totalItems = $this->iriRepository->findByArguments($arguments, $this->settings)->count();
             $findMethod = 'findByArguments';
         } else {
@@ -305,7 +259,7 @@ class ApiController extends ActionController
             $totalPages = 1;
         }
 
-        if ($arguments['page']) {
+        if ($arguments['page'] ?? null) {
             ($arguments['page'] <= $totalPages) ? $page = (int)$arguments['page'] : $page = $totalPages;
         } else {
             $page = 1;
@@ -315,7 +269,7 @@ class ApiController extends ActionController
         $offset = ($page - 1) * $limit;
 
         // determine result order
-        ($arguments['sorting']) ? $sorting = (int)$arguments['sorting'] : $sorting = 1;
+        $sorting = (int)($arguments['sorting'] ?? 0) ?: 1;
         switch ($sorting) {
             case 1:
             default:
@@ -388,12 +342,7 @@ class ApiController extends ActionController
         $apiDocumentationKey = $this->request->getArgument('apiDocumentation');
 
         if (!in_array($apiDocumentationKey, $this->settings['apiDocumentation']['keys']) || $this->request->getFormat() != 'jsonld') {
-            $response = GeneralUtility::makeInstance(ErrorController::class)->pageNotFoundAction(
-                $GLOBALS['TYPO3_REQUEST'],
-                'The requested page does not exist',
-                ['code' => PageAccessFailureReasons::PAGE_NOT_FOUND]
-            );
-            throw new ImmediateResponseException($response, 4215392081);
+            throw new PropagateResponseException($this->pageNotFound(), 4215392081);
         }
 
         // assign current action for disambiguation in about template
@@ -407,5 +356,118 @@ class ApiController extends ActionController
     {
         // assign current action for disambiguation in about template
         $this->view->assign('action', 'apiEntryPoint');
+    }
+
+    /**
+     * Builds the redirect to the document representation content negotiation settled on.
+     *
+     * Only requests for the abstract resource (no page type in the URL) are redirected. The URL is
+     * generated by the router, so whatever the site configuration maps the target page type to --
+     * a `PageTypeSuffix` route enhancer, a plain `type` parameter -- is applied automatically.
+     * Building the URL by hand used to require this method to read the site configuration's route
+     * enhancers and to strip duplicate file endings afterwards.
+     *
+     * @return ResponseInterface|null A redirect response, or null when the request should be rendered
+     */
+    private function redirectToNegotiatedRepresentation(
+        ContentNegotiationResult $negotiation,
+        int $pageUid,
+        NormalizedParams $normalizedParams
+    ): ?ResponseInterface {
+        if (!$negotiation->isRedirectRequired()) {
+            return null;
+        }
+
+        $uri = $this->buildRepresentationUri($negotiation->pageType, $pageUid);
+
+        // never redirect onto the URL that is being served already: a representation whose URL
+        // cannot be told apart from the resource URL has to be rendered instead of looping
+        if ($uri === '' || $this->isCurrentRequestUri($uri, $normalizedParams)) {
+            return null;
+        }
+
+        // if dedicated representations for the resource are available go through each of them and
+        // check if accepted media type fits representation content type; if so call according resolver
+        if ($this->resource instanceof Iri && count($this->resource->getRepresentations()) > 0) {
+            foreach ($this->contentNegotiationService->getAcceptedMimeTypes($this->request) as $mimeType) {
+                foreach ($this->resource->getRepresentations() as $representation) {
+                    $representationContentType = $this->contentNegotiationService->processContentType($representation->getContentType());
+                    if ($representationContentType['mime'] === $mimeType && $representationContentType['mime'] === $negotiation->mimeType) {
+                        // call representation resolver service
+                        $url = $this->resolverService->resolve($representation, (array)($this->settings['resolver'] ?? []), $this->request);
+                        if (GeneralUtility::isValidUrl($url)) {
+                            return $this->redirectToUri($url);
+                        }
+                    }
+                }
+                // if none of the representations fit redirect to a generated representation
+                if ($mimeType === $negotiation->mimeType) {
+                    return $this->redirectToUri($uri);
+                }
+            }
+
+            return null;
+        }
+
+        // otherwise redirect to a generated about representation
+        return $this->redirectToUri($uri);
+    }
+
+    /**
+     * Generates the URL of a document representation of the current resource, carrying the current
+     * plugin arguments over so that search and paging state survives the redirect.
+     */
+    private function buildRepresentationUri(int $pageType, int $pageUid): string
+    {
+        $arguments = $this->request->getArguments();
+
+        // controller, action and page type are expressed by the route itself
+        unset($arguments['controller'], $arguments['action'], $arguments['type']);
+
+        $uriBuilder = $this->uriBuilder
+            ->reset()
+            ->setTargetPageUid($pageUid)
+            ->setTargetPageType($pageType)
+            ->setCreateAbsoluteUri(true);
+
+        // Without plugin arguments there is nothing for the Extbase route enhancer to encode. Asking
+        // it for a controller/action route it cannot build would push both into the query string
+        // instead; the plain page URL is what the enhancer's defaultController resolves back to.
+        if ($arguments === []) {
+            return $uriBuilder->build();
+        }
+
+        return $uriBuilder->uriFor('about', $arguments, 'Api', 'lod', 'api');
+    }
+
+    /**
+     * Whether the given URL addresses the path that is currently being requested.
+     */
+    private function isCurrentRequestUri(string $uri, NormalizedParams $normalizedParams): bool
+    {
+        $targetPath = (string)(parse_url($uri, PHP_URL_PATH) ?: '');
+        $currentPath = (string)(parse_url($normalizedParams->getRequestUri(), PHP_URL_PATH) ?: '');
+
+        return $targetPath !== '' && rtrim($targetPath, '/') === rtrim($currentPath, '/');
+    }
+
+    /**
+     * Page type serving the Hydra API documentation, which the Hydra spec requires to be JSON-LD.
+     */
+    private function getApiDocumentationPageType(): int
+    {
+        return (int)($this->settings['contentNegotiation']['apiDocumentationPageType'] ?? 0);
+    }
+
+    /**
+     * Builds a PSR-7 compliant 404 response through the site's configured error handling.
+     */
+    private function pageNotFound(): ResponseInterface
+    {
+        return $this->errorController->pageNotFoundAction(
+            $this->request,
+            'The requested page does not exist',
+            ['code' => PageAccessFailureReasons::PAGE_NOT_FOUND]
+        );
     }
 }

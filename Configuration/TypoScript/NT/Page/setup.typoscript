@@ -15,6 +15,16 @@ nt {
   }
 }
 
-[(getTSFE() ? getTSFE().type : 0) == 2013]
+# Rendering the plugin is not guarded by a page type condition: only the PAGE object whose
+# typeNum matches the current request is ever rendered, so the condition never bought anything.
+# It used to read "getTSFE().type", which silently evaluates to null since TYPO3 v13 removed the
+# $type property from TypoScriptFrontendController, leaving every serialisation blank.
 nt.10 < lib.tx_lod.plugin
-[global]
+
+# Representation offered by this page type, used by \Digicademy\Lod\Service\ContentNegotiationService.
+plugin.tx_lod.settings.contentNegotiation {
+  types.2013 {
+    mimeType = application/n-triples
+    format = nt
+  }
+}

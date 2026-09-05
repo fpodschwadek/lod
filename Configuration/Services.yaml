@@ -20,8 +20,8 @@ services:
     public: true
 
   # Services
-  Digicademy\Lod\Service\ContentNegotiationService:
-    public: true
+  # ContentNegotiationService is constructor injected only and therefore stays private;
+  # it must not be marked public, which used to make the container hand it a blank ServerRequest.
   Digicademy\Lod\Service\ResolverService:
     public: true
   Digicademy\Lod\Service\ItemMappingService:

@@ -1,14 +1,8 @@
-[(getTSFE() ? getTSFE().type : 0) == 2013]
-
-plugin.tx_lod {
-  format = nt
-  view {
-    layoutRootPaths.10 = EXT:lod/Resources/Private/NT/Layouts/
-    partialRootPaths.10 = EXT:lod/Resources/Private/NT/Partials/
-    templateRootPaths.10 = EXT:lod/Resources/Private/NT/Templates/
-  }
+# Template paths for the nt representation. Registered unconditionally: every format tree holds
+# only files carrying its own extension (Api/About.nt and so on), so Fluid resolves the right
+# template from the Extbase request format alone and no page type condition is needed.
+plugin.tx_lod.view {
+  layoutRootPaths.12 = EXT:lod/Resources/Private/NT/Layouts/
+  partialRootPaths.12 = EXT:lod/Resources/Private/NT/Partials/
+  templateRootPaths.12 = EXT:lod/Resources/Private/NT/Templates/
 }
-
-tt_content.stdWrap >
-lib.stdheader >
-[global]

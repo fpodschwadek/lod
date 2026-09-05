@@ -28,6 +28,7 @@
 namespace Digicademy\Lod\Service;
 
 use Digicademy\Lod\Domain\Model\Representation;
+use Psr\Http\Message\ServerRequestInterface;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Frontend\ContentObject\ContentObjectRenderer;
 
@@ -50,26 +51,33 @@ class ResolverService
      */
     public function __construct()
     {
-        $this->availableResolvers = $GLOBALS['TYPO3_CONF_VARS']['EXTCONF']['lod']['resolver'];
+        $this->availableResolvers = (array)($GLOBALS['TYPO3_CONF_VARS']['EXTCONF']['lod']['resolver'] ?? []);
     }
 
     /**
-     * @param Representation $representation
-     * @param array $settings
+     * @param Representation         $representation
+     * @param array                  $settings
+     * @param ServerRequestInterface $request Current request, forwarded to the resolver and its cObj
      * @return string
      */
     public function resolve(
         Representation $representation,
-        array $settings
+        array $settings,
+        ServerRequestInterface $request
     ): string {
         $url = '';
         $scheme = $representation->getScheme();
 
-        if ($this->availableResolvers[$scheme]) {
+        if ($this->availableResolvers[$scheme] ?? null) {
+            // ContentObjectRenderer needs the request before it can build any link in TYPO3 v13
+            $contentObjectRenderer = GeneralUtility::makeInstance(ContentObjectRenderer::class);
+            $contentObjectRenderer->setRequest($request);
+
             $resolver = GeneralUtility::makeInstance(
                 $this->availableResolvers[$scheme],
                 $settings[$scheme] ?? [],
-                GeneralUtility::makeInstance(ContentObjectRenderer::class)
+                $contentObjectRenderer,
+                $request
             );
             $url = $resolver->resolveToUrl($representation);
         }

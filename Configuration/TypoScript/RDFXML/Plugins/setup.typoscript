@@ -1,14 +1,8 @@
-[(getTSFE() ? getTSFE().type : 0) == 2004]
-
-plugin.tx_lod {
-  format = rdfxml
-  view {
-    layoutRootPaths.10 = EXT:lod/Resources/Private/RDFXML/Layouts/
-    partialRootPaths.10 = EXT:lod/Resources/Private/RDFXML/Partials/
-    templateRootPaths.10 = EXT:lod/Resources/Private/RDFXML/Templates/
-  }
+# Template paths for the rdfxml representation. Registered unconditionally: every format tree holds
+# only files carrying its own extension (Api/About.rdfxml and so on), so Fluid resolves the right
+# template from the Extbase request format alone and no page type condition is needed.
+plugin.tx_lod.view {
+  layoutRootPaths.13 = EXT:lod/Resources/Private/RDFXML/Layouts/
+  partialRootPaths.13 = EXT:lod/Resources/Private/RDFXML/Partials/
+  templateRootPaths.13 = EXT:lod/Resources/Private/RDFXML/Templates/
 }
-
-tt_content.stdWrap >
-lib.stdheader >
-[global]

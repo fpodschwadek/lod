@@ -13,6 +13,18 @@ html {
   }
 }
 
-[(getTSFE() ? getTSFE().type : 0) == 1991]
+# Rendering the plugin is not guarded by a page type condition: only the PAGE object whose
+# typeNum matches the current request is ever rendered, so the condition never bought anything.
+# It used to read "getTSFE().type", which silently evaluates to null since TYPO3 v13 removed the
+# $type property from TypoScriptFrontendController, leaving every serialisation blank.
 html.10 < lib.tx_lod.plugin
-[global]
+
+# Representation offered by this page type, used by \Digicademy\Lod\Service\ContentNegotiationService.
+plugin.tx_lod.settings.contentNegotiation {
+  # representation to fall back to when a client accepts nothing that is on offer
+  default = 1991
+  types.1991 {
+    mimeType = text/html
+    format = html
+  }
+}
