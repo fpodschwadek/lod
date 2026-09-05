@@ -130,3 +130,13 @@ $GLOBALS['TYPO3_CONF_VARS']['FE']['cacheHash']['excludedParameters'][] = 'tx_lod
 $GLOBALS['TYPO3_CONF_VARS']['FE']['cacheHash']['excludedParameters'][] = 'tx_lod_api[object]';
 $GLOBALS['TYPO3_CONF_VARS']['FE']['cacheHash']['excludedParameters'][] = 'tx_lod_api[sorting]';
 $GLOBALS['TYPO3_CONF_VARS']['FE']['cacheHash']['excludedParameters'][] = 'tx_lod_api[apiDocumentation]';
+
+// The RDF/XML templates write RDF vocabulary terms as XML elements ("<rdfs:seeAlso>",
+// "<rdf:Description>", "<void:feature>" ...). Fluid parses every "<prefix:tag>" as a ViewHelper
+// call and throws an UnknownNamespaceException for prefixes it does not know, so the vocabulary
+// prefixes are registered as ignored namespaces -- a null value is what marks a namespace ignored
+// (\TYPO3Fluid\Fluid\Core\ViewHelper\ViewHelperResolver::isNamespaceIgnored()). "??=" leaves a
+// prefix alone that an application has deliberately bound to real ViewHelpers.
+foreach (['dc', 'hydra', 'owl', 'rdf', 'rdfs', 'schema', 'void'] as $rdfVocabularyPrefix) {
+    $GLOBALS['TYPO3_CONF_VARS']['SYS']['fluid']['namespaces'][$rdfVocabularyPrefix] ??= null;
+}
