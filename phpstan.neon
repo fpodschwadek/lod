@@ -2,14 +2,9 @@ parameters:
 	level: 5
 	paths:
 		- Classes
-	scanDirectories:
-		# Composer dependencies
-		- ../..
 	ignoreErrors:
 		# This is one of three global line break constants set in
 		# SystemEnvironmentBuild::defineBaseConstants.
 		# The're not registered by PHPStan, but they're there.
 		# (Funny enough, recent docs also don't say anything about these.)
 		- "#Constant LF not found.#"
-
-
