@@ -133,7 +133,7 @@ tx_lod {
 # in PageTSconfig
 
 TCEMAIN.linkHandler.MY_HANDLER_KEYWORD {
-    handler = TYPO3\CMS\Recordlist\LinkHandler\RecordLinkHandler
+    handler = TYPO3\CMS\Backend\LinkHandler\RecordLinkHandler
     label = LLL:EXT:my_ext/Resources/Private/Language/locallang.xlf:link.customTab
     configuration {
         table = my_table
@@ -162,7 +162,7 @@ config.recordLinks.MY_HANDLER_KEYWORD {
 # TSConfig
 
 TCEMAIN.linkHandler.iri {
-    handler = TYPO3\CMS\Recordlist\LinkHandler\RecordLinkHandler
+    handler = TYPO3\CMS\Backend\LinkHandler\RecordLinkHandler
     label = IRI
     configuration {
         table = tx_lod_domain_model_iri
