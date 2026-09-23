@@ -4,343 +4,99 @@ namespace Digicademy\Lod\Backend\Form\Element;
 
 use TYPO3\CMS\Backend\Form\Element\GroupElement;
 use TYPO3\CMS\Backend\Utility\BackendUtility;
-use TYPO3\CMS\Core\Imaging\IconFactory;
-use TYPO3\CMS\Core\Page\JavaScriptModuleInstruction;
-use TYPO3\CMS\Core\Utility\{
-    GeneralUtility,
-    MathUtility,
-    StringUtility
-};
 
 /*
- * Copy of the core group element with the sole purpose of changing hardcoded HTML
- * Allow for horizontal field controls (needed for statement table group fields / triple composer)
- * search for '@metacontext' to find changes
+ * Adjusts core's group element in two places: the field controls are laid out horizontally
+ * (needed for statement table group fields / triple composer), and a field whose value arrives
+ * as a bare uid rather than a resolved item list is normalised before core sees it.
+ *
+ * Both are done around parent::render() rather than inside a copy of it. This class used to be
+ * a full copy of the core method body — roughly 300 lines to change one CSS class — and that is
+ * exactly why it broke on the TYPO3 13 upgrade: core moved $iconFactory off AbstractFormElement
+ * into a private promoted property of GroupElement, the copy went on reading it as though it
+ * were still inherited, and every group field in the backend died with "Call to a member
+ * function getIcon() on null". Delegating to core means there is no body left to fall behind,
+ * and the worst a future core change can now do is make the button layout revert to vertical.
+ *
+ * Registered as an XClass of GroupElement in ext_localconf.php, so it applies to every group
+ * field, which is how it has always behaved.
  */
 class EnhancedGroupElement extends GroupElement
 {
     /**
-     * This class needs its own IconFactory.
+     * Matches the "btn-group-vertical" that opens the field control group, and only that one.
      *
-     * Up to TYPO3 12.4 it could use the inherited one: AbstractFormElement declared
-     * "protected $iconFactory" and populated it in its constructor. TYPO3 13 removed it from
-     * AbstractFormElement and made it a private promoted constructor property of GroupElement
-     * instead, and a private property of the parent is not visible here — $this->iconFactory
-     * silently read an undeclared property and every group field in the backend died with
-     * "Call to a member function getIcon() on null" as soon as it was rendered.
-     *
-     * The signature deliberately mirrors GroupElement's: TYPO3 resolves the constructor
-     * arguments for the class being overridden and hands them to the override — see
-     * AbstractServiceProvider::new(), which calls GeneralUtility::makeInstanceForDi() — so the
-     * single IconFactory argument has to line up. Should core add an argument there, PHP passes
-     * the extra one and ignores it; should it drop the IconFactory, this fails loudly with an
-     * ArgumentCountError rather than silently reading null again.
-     *
-     * parent::__construct() is deliberately not called: render() below is a full override that
-     * never reads GroupElement's own private copy.
+     * Core emits two button groups in a group field: one for the move and delete controls and
+     * one for the field controls, both classed "btn-group-vertical" but sitting in asides that
+     * 13.4 distinguishes with "--move" and "--field-control" modifiers. Only the field control
+     * group is meant to be horizontal here; the move controls stay vertical, as they always have.
      */
-    public function __construct(
-        private readonly IconFactory $iconFactory,
-    ) {}
+    private const FIELD_CONTROL_BUTTON_GROUP = '/(form-wizards-item-aside--field-control">\s*<div class=")btn-group-vertical(")/';
 
     /**
-     * This will render a selector box into which elements from either
-     * the file system or database can be inserted. Relations.
-     *
-     * @return array As defined in initializeResultArray() of AbstractNode
-     * @throws \RuntimeException
+     * @return array<string, mixed> As defined in initializeResultArray() of AbstractNode
      */
     public function render(): array
     {
-        $languageService = $this->getLanguageService();
-        $backendUser = $this->getBackendUserAuthentication();
-        $resultArray = $this->initializeResultArray();
+        $parameterArray = $this->data['parameterArray'] ?? [];
 
-        $table = $this->data['tableName'];
-        $fieldName = $this->data['fieldName'];
-        $row = $this->data['databaseRow'];
-        $parameterArray = $this->data['parameterArray'];
-        $config = $parameterArray['fieldConf']['config'];
-        $elementName = $parameterArray['itemFormElName'];
-        $selectedItems = $parameterArray['itemFormElValue'];
+        $this->data['parameterArray']['itemFormElValue'] = $this->resolveSelectedItems(
+            $parameterArray['itemFormElValue'] ?? null,
+            $parameterArray['fieldConf']['config'] ?? []
+        );
 
-        // in case of readOnly fields (scenario l10_display we only get integers instead of full foreign record
-        // therefore the foreign records needs to be retrieved in the following lines
-        if (is_int($selectedItems) && $selectedItems > 0) {
-            $foreignRow = BackendUtility::getRecord($config['allowed'], $selectedItems);
-            $foreignTitle = BackendUtility::getRecordTitle($config['allowed'], $foreignRow);
-            $selectedItemsArray[] = [
-                'table' => $config['allowed'],
-                'uid' => $selectedItems,
-                'title' => $foreignTitle,
-                'row' => $foreignRow,
-            ];
-            $selectedItems = $selectedItemsArray;
-        } elseif ($selectedItems == 0) {
-            $selectedItems = [];
+        $resultArray = parent::render();
+
+        // @metacontext: horizontal instead of vertical field controls
+        $html = preg_replace(
+            self::FIELD_CONTROL_BUTTON_GROUP,
+            '${1}btn-group-horizontal${2}',
+            (string)($resultArray['html'] ?? '')
+        );
+
+        // preg_replace() answers null on failure; keeping core's markup is better than losing it
+        if ($html !== null) {
+            $resultArray['html'] = $html;
         }
 
-        $selectedItemsCount = count($selectedItems);
-
-        $maxItems = $config['maxitems'];
-        $autoSizeMax = MathUtility::forceIntegerInRange($config['autoSizeMax'] ?? false, 0);
-        $size = 5;
-        if (isset($config['size'])) {
-            $size = (int)$config['size'];
-        }
-        if ($autoSizeMax >= 1) {
-            $size = MathUtility::forceIntegerInRange($selectedItemsCount + 1, MathUtility::forceIntegerInRange($size, 1), $autoSizeMax);
-        }
-
-        $internalType = (string)($config['internal_type'] ?? 'db');
-        $maxTitleLength = $backendUser->uc['titleLen'];
-
-        $listOfSelectedValues = [];
-        $selectorOptionsHtml = [];
-        if ($internalType === 'folder') {
-            foreach ($selectedItems as $selectedItem) {
-                $folder = $selectedItem['folder'];
-                $listOfSelectedValues[] = $folder;
-                $selectorOptionsHtml[] =
-                    '<option value="' . htmlspecialchars($folder) . '" title="' . htmlspecialchars($folder) . '">'
-                        . htmlspecialchars($folder)
-                    . '</option>';
-            }
-        } elseif ($internalType === 'db') {
-            foreach ($selectedItems as $selectedItem) {
-                $tableWithUid = $selectedItem['table'] . '_' . $selectedItem['uid'];
-                $listOfSelectedValues[] = $tableWithUid;
-                $title = $selectedItem['title'];
-                if (empty($title)) {
-                    $title = '[' . $languageService->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.no_title') . ']';
-                }
-                $shortenedTitle = GeneralUtility::fixed_lgd_cs($title, $maxTitleLength);
-                $selectorOptionsHtml[] =
-                    '<option value="' . htmlspecialchars($tableWithUid) . '" title="' . htmlspecialchars($title) . '">'
-                        . htmlspecialchars($this->appendValueToLabelInDebugMode($shortenedTitle, $tableWithUid))
-                    . '</option>';
-            }
-        } else {
-            throw new \RuntimeException(
-                'Invalid TCA internal_type "' . $internalType . '" on type="group", field "' . $fieldName . '", table "' . $table . '"',
-                1485007097
-            );
-        }
-
-        $fieldInformationResult = $this->renderFieldInformation();
-        $fieldInformationHtml = $fieldInformationResult['html'];
-        $resultArray = $this->mergeChildReturnIntoExistingResult($resultArray, $fieldInformationResult, false);
-
-        if (isset($config['readOnly']) && $config['readOnly']) {
-            // Return early if element is read only
-            $html = [];
-            $html[] = '<div class="formengine-field-item t3js-formengine-field-item">';
-            $html[] =   $fieldInformationHtml;
-            $html[] =   '<div class="form-wizards-wrap">';
-            $html[] =       '<div class="form-wizards-element">';
-            $html[] =           '<select';
-            $html[] =               ' size="' . $size . '"';
-            $html[] =               ' disabled="disabled"';
-            $html[] =               ' class="form-control tceforms-multiselect"';
-            $html[] =               ($maxItems !== 1 && $size !== 1) ? ' multiple="multiple"' : '';
-            $html[] =           '>';
-            $html[] =               implode(LF, $selectorOptionsHtml);
-            $html[] =           '</select>';
-            $html[] =       '</div>';
-            $html[] =       '<div class="form-wizards-items-aside">';
-            $html[] =       '</div>';
-            $html[] =   '</div>';
-            $html[] = '</div>';
-            $resultArray['html'] = implode(LF, $html);
-            return $resultArray;
-        }
-
-        // Need some information if in flex form scope for the suggest element
-        $dataStructureIdentifier = '';
-        $flexFormSheetName = '';
-        $flexFormFieldName = '';
-        $flexFormContainerName = '';
-        $flexFormContainerFieldName = '';
-        if ($this->data['processedTca']['columns'][$fieldName]['config']['type'] === 'flex') {
-            $flexFormConfig = $this->data['processedTca']['columns'][$fieldName];
-            $dataStructureIdentifier = $flexFormConfig['config']['dataStructureIdentifier'];
-            if (!isset($flexFormConfig['config']['dataStructureIdentifier'])) {
-                throw new \RuntimeException(
-                    'A data structure identifier must be set in [\'config\'] part of a flex form.'
-                    . ' This is usually added by TcaFlexPrepare data processor',
-                    1485206970
-                );
-            }
-            if (isset($this->data['flexFormSheetName'])) {
-                $flexFormSheetName = $this->data['flexFormSheetName'];
-            }
-            if (isset($this->data['flexFormFieldName'])) {
-                $flexFormFieldName = $this->data['flexFormFieldName'];
-            }
-            if (isset($this->data['flexFormContainerName'])) {
-                $flexFormContainerName = $this->data['flexFormContainerName'];
-            }
-            if (isset($this->data['flexFormContainerFieldName'])) {
-                $flexFormContainerFieldName = $this->data['flexFormContainerFieldName'];
-            }
-        }
-        // Get minimum characters for suggest from TCA and override by TsConfig
-        $suggestMinimumCharacters = 0;
-        if (isset($config['suggestOptions']['default']['minimumCharacters'])) {
-            $suggestMinimumCharacters = (int)$config['suggestOptions']['default']['minimumCharacters'];
-        }
-        if (isset($parameterArray['fieldTSConfig']['suggest.']['default.']['minimumCharacters'])) {
-            $suggestMinimumCharacters = (int)$parameterArray['fieldTSConfig']['suggest.']['default.']['minimumCharacters'];
-        }
-        $suggestMinimumCharacters = $suggestMinimumCharacters > 0 ? $suggestMinimumCharacters : 2;
-
-        $itemCanBeSelectedMoreThanOnce = !empty($config['multiple']);
-
-        $showMoveIcons = true;
-        if (isset($config['hideMoveIcons']) && $config['hideMoveIcons']) {
-            $showMoveIcons = false;
-        }
-        $showDeleteControl = true;
-        if (isset($config['hideDeleteIcon']) && $config['hideDeleteIcon']) {
-            $showDeleteControl = false;
-        }
-
-        $fieldId = StringUtility::getUniqueId('tceforms-multiselect-');
-
-        $selectorAttributes = [
-            'id' => $fieldId,
-            'data-formengine-input-name' => htmlspecialchars($elementName),
-            'data-formengine-validation-rules' => $this->getValidationDataAsJsonString($config),
-            'data-maxitems' => (string)$maxItems,
-            'size' => (string)$size,
-        ];
-        $selectorClasses = [
-            'form-control',
-            'tceforms-multiselect',
-        ];
-        if ($maxItems === 1) {
-            $selectorClasses[] = 'form-select-no-siblings';
-        }
-        $selectorAttributes['class'] = implode(' ', $selectorClasses);
-        if ($maxItems !== 1 && $size !== 1) {
-            $selectorAttributes['multiple'] = 'multiple';
-        }
-
-        $fieldControlResult = $this->renderFieldControl();
-        $fieldControlHtml = $fieldControlResult['html'];
-        $resultArray = $this->mergeChildReturnIntoExistingResult($resultArray, $fieldControlResult, false);
-
-        $fieldWizardResult = $this->renderFieldWizard();
-        $fieldWizardHtml = $fieldWizardResult['html'];
-        $resultArray = $this->mergeChildReturnIntoExistingResult($resultArray, $fieldWizardResult, false);
-
-        $html = [];
-        $html[] = '<div class="formengine-field-item t3js-formengine-field-item">';
-        $html[] =   $fieldInformationHtml;
-        $html[] =   '<div class="form-wizards-wrap">';
-        if ($internalType === 'db' && (!isset($config['hideSuggest']) || (bool)$config['hideSuggest'] !== true)) {
-            $html[] =   '<div class="form-wizards-items-top">';
-            $html[] =       '<div class="autocomplete t3-form-suggest-container">';
-            $html[] =           '<div class="input-group">';
-            $html[] =               '<span class="input-group-addon">';
-            $html[] =                   $this->iconFactory->getIcon('actions-search', \TYPO3\CMS\Core\Imaging\IconSize::SMALL)->render();
-            $html[] =               '</span>';
-            $html[] =               '<input type="search" class="t3-form-suggest form-control"';
-            $html[] =                   ' placeholder="' . $languageService->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.findRecord') . '"';
-            $html[] =                   ' data-fieldname="' . htmlspecialchars($fieldName) . '"';
-            $html[] =                   ' data-tablename="' . htmlspecialchars($table) . '"';
-            $html[] =                   ' data-field="' . htmlspecialchars($elementName) . '"';
-            $html[] =                   ' data-uid="' . htmlspecialchars($this->data['databaseRow']['uid']) . '"';
-            $html[] =                   ' data-pid="' . htmlspecialchars($this->data['parentPageRow']['uid'] ?? 0) . '"';
-            $html[] =                   ' data-fieldtype="' . htmlspecialchars($config['type']) . '"';
-            $html[] =                   ' data-minchars="' . htmlspecialchars((string)$suggestMinimumCharacters) . '"';
-            $html[] =                   ' data-datastructureidentifier="' . htmlspecialchars($dataStructureIdentifier) . '"';
-            $html[] =                   ' data-flexformsheetname="' . htmlspecialchars($flexFormSheetName) . '"';
-            $html[] =                   ' data-flexformfieldname="' . htmlspecialchars($flexFormFieldName) . '"';
-            $html[] =                   ' data-flexformcontainername="' . htmlspecialchars($flexFormContainerName) . '"';
-            $html[] =                   ' data-flexformcontainerfieldname="' . htmlspecialchars($flexFormContainerFieldName) . '"';
-            $html[] =               '/>';
-            $html[] =           '</div>';
-            $html[] =       '</div>';
-            $html[] =   '</div>';
-        }
-        $html[] =       '<div class="form-wizards-element">';
-        $html[] =           '<input type="hidden" class="t3js-group-hidden-field" data-formengine-input-name="' . htmlspecialchars($elementName) . '" value="' . $itemCanBeSelectedMoreThanOnce . '" />';
-        $html[] =           '<select ' . GeneralUtility::implodeAttributes($selectorAttributes, true) . '>';
-        $html[] =               implode(LF, $selectorOptionsHtml);
-        $html[] =           '</select>';
-        $html[] =       '</div>';
-        $html[] =       '<div class="form-wizards-items-aside">';
-        $html[] =           '<div class="btn-group-vertical">';
-        if ($maxItems > 1 && $size >= 5 && $showMoveIcons) {
-            $html[] =           '<a href="#"';
-            $html[] =               ' class="btn btn-default t3js-btn-option t3js-btn-moveoption-top"';
-            $html[] =               ' data-fieldname="' . htmlspecialchars($elementName) . '"';
-            $html[] =               ' title="' . htmlspecialchars($languageService->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.move_to_top')) . '"';
-            $html[] =           '>';
-            $html[] =               $this->iconFactory->getIcon('actions-move-to-top', \TYPO3\CMS\Core\Imaging\IconSize::SMALL)->render();
-            $html[] =           '</a>';
-        }
-        if ($maxItems > 1 && $size > 1 && $showMoveIcons) {
-            $html[] =           '<a href="#"';
-            $html[] =               ' class="btn btn-default t3js-btn-option t3js-btn-moveoption-up"';
-            $html[] =               ' data-fieldname="' . htmlspecialchars($elementName) . '"';
-            $html[] =               ' title="' . htmlspecialchars($languageService->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.move_up')) . '"';
-            $html[] =           '>';
-            $html[] =               $this->iconFactory->getIcon('actions-move-up', \TYPO3\CMS\Core\Imaging\IconSize::SMALL)->render();
-            $html[] =           '</a>';
-            $html[] =           '<a href="#"';
-            $html[] =               ' class="btn btn-default t3js-btn-option t3js-btn-moveoption-down"';
-            $html[] =               ' data-fieldname="' . htmlspecialchars($elementName) . '"';
-            $html[] =               ' title="' . htmlspecialchars($languageService->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.move_down')) . '"';
-            $html[] =           '>';
-            $html[] =               $this->iconFactory->getIcon('actions-move-down', \TYPO3\CMS\Core\Imaging\IconSize::SMALL)->render();
-            $html[] =           '</a>';
-        }
-        if ($maxItems > 1 && $size >= 5 && $showMoveIcons) {
-            $html[] =           '<a href="#"';
-            $html[] =               ' class="btn btn-default t3js-btn-option t3js-btn-moveoption-bottom"';
-            $html[] =               ' data-fieldname="' . htmlspecialchars($elementName) . '"';
-            $html[] =               ' title="' . htmlspecialchars($languageService->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.move_to_bottom')) . '"';
-            $html[] =           '>';
-            $html[] =               $this->iconFactory->getIcon('actions-move-to-bottom', \TYPO3\CMS\Core\Imaging\IconSize::SMALL)->render();
-            $html[] =           '</a>';
-        }
-        if ($showDeleteControl) {
-            $html[] =           '<a href="#"';
-            $html[] =               ' class="btn btn-default t3js-btn-option t3js-btn-removeoption t3js-revert-unique"';
-            $html[] =               ' data-fieldname="' . htmlspecialchars($elementName) . '"';
-            $html[] =               ' data-uid="' . htmlspecialchars($row['uid']) . '"';
-            $html[] =               ' title="' . htmlspecialchars($languageService->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.remove_selected')) . '"';
-            $html[] =           '>';
-            $html[] =               $this->iconFactory->getIcon('actions-selection-delete', \TYPO3\CMS\Core\Imaging\IconSize::SMALL)->render();
-            $html[] =           '</a>';
-        }
-        $html[] =           '</div>';
-        $html[] =       '</div>';
-        $html[] =       '<div class="form-wizards-items-aside">';
-
-        // @metacontext
-        // $html[] =           '<div class="btn-group-vertical">';
-        $html[] =           '<div class="btn-group-horizontal">';
-
-        $html[] =               $fieldControlHtml;
-        $html[] =           '</div>';
-        $html[] =       '</div>';
-        if (!empty($fieldWizardHtml)) {
-            $html[] = '<div class="form-wizards-items-bottom">';
-            $html[] = $fieldWizardHtml;
-            $html[] = '</div>';
-        }
-        $html[] =   '</div>';
-        $html[] =   '<input type="hidden" name="' . htmlspecialchars($elementName) . '" value="' . htmlspecialchars(implode(',', $listOfSelectedValues)) . '" />';
-        $html[] = '</div>';
-
-        $resultArray['javaScriptModules'][] = JavaScriptModuleInstruction::create(
-            '@typo3/backend/form-engine/element/group-element.js'
-        )->instance($fieldId);
-
-        $resultArray['html'] = implode(LF, $html);
         return $resultArray;
+    }
+
+    /**
+     * Turns a bare uid into the item list core expects.
+     *
+     * A read-only field — in practice any of the group fields carrying
+     * "l10n_display => defaultAsReadonly" — hands FormEngine the plain uid of the foreign record
+     * instead of a resolved item array. Core cannot work with that: GroupElement iterates the
+     * value and reads 'table', 'uid' and 'title' off each entry, so it has to be resolved here.
+     * A value that is already an array, of items or empty, is passed through untouched.
+     *
+     * @param mixed $selectedItems The raw itemFormElValue
+     * @param array<string, mixed> $config TCA config of the field
+     * @return array<int, array<string, mixed>>|mixed The item list, or the value unchanged
+     */
+    private function resolveSelectedItems(mixed $selectedItems, array $config): mixed
+    {
+        if (is_array($selectedItems)) {
+            return $selectedItems;
+        }
+
+        $foreignTable = (string)($config['allowed'] ?? '');
+
+        if ($foreignTable === '' || !is_numeric($selectedItems) || (int)$selectedItems <= 0) {
+            // covers an empty value and a uid of 0, both of which mean "nothing selected"
+            return [];
+        }
+
+        $foreignRow = BackendUtility::getRecord($foreignTable, (int)$selectedItems);
+
+        return [
+            [
+                'table' => $foreignTable,
+                'uid' => (int)$selectedItems,
+                'title' => BackendUtility::getRecordTitle($foreignTable, $foreignRow ?? []),
+                'row' => $foreignRow,
+            ],
+        ];
     }
 }

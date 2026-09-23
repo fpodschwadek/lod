@@ -153,3 +153,43 @@ None. The fix is contained in the extension and restores the behaviour projects 
 Checked in a throwaway `1drop/php-utils:8.5` container against the project autoloader: the class still implements `NodeInterface`, so it keeps the `backend.form.node` autoconfigure tag that makes it a public, non-shared service; it declares its own constructor; that constructor's signature is identical to core `GroupElement`'s; the `iconFactory` property now resolves to this class rather than the parent; and an instance carries an `IconFactory` rather than null.
 
 A repository-wide audit was run alongside: every class under a `packages/*/Classes` tree that extends a TYPO3 core class was loaded and each `$this->x` read compared against what is actually accessible to it. `EnhancedGroupElement` was the only case of a subclass reading a parent's private property, and it no longer appears. Not fixed, and unrelated: `N4C\CultureRegistry\Domain\Model\Data` and `Software` read nine undeclared properties between them, and several `culture_registry` and `lod` constructors still use implicitly nullable parameters that PHP 8.4 deprecates.
+
+---
+
+## 2026-09-23 — `EnhancedGroupElement` no longer copies core's `render()`
+
+### Why
+
+The `IconFactory` fix recorded above treated the symptom. The cause was that this class held a copy of core's `GroupElement::render()` — roughly 300 lines — in order to change one CSS class, so it could not notice when core moved `$iconFactory` into a private property. A copy of a core method body cannot be kept correct across upgrades, and this was the second fatal of the day from that same pattern; `EXT:academy` had one a few hours earlier, where a copy of `TcaInline::resolveRelatedRecords()` went on calling a `protected` method whose signature had changed.
+
+### What the class actually needed
+
+Only two things, both of which can be done around `parent::render()`:
+
+The field controls are laid out horizontally rather than vertically — a single CSS class, `btn-group-vertical` to `btn-group-horizontal`. Note that core emits *two* button groups in a group field and the copy changed only one of them: the move and delete controls stayed vertical and must continue to. TYPO3 13.4 distinguishes the two asides with `--move` and `--field-control` modifiers (`GroupElement.php:292` and `:347`), so the replacement is anchored on `form-wizards-item-aside--field-control` and swaps only the `btn-group-vertical` that follows it. `preg_replace()` answering null is caught, leaving core's markup rather than losing it.
+
+A field whose value arrives as a bare uid instead of a resolved item list is normalised before core sees it. This is the `l10n_display => defaultAsReadonly` case, and it is still needed: 13.4 core assigns `itemFormElValue` at `GroupElement.php:124` and iterates it at `:139` without any scalar guard. Core reads the value from `$this->data['parameterArray']['itemFormElValue']`, so it is rewritten there before delegating. A value that is already an array passes through untouched, and an empty value or a uid of 0 becomes an empty list.
+
+### Result
+
+346 lines become 102, most of them comment. The class declares no properties and no constructor of its own, so it inherits `GroupElement`'s and dependency injection populates core's private `$iconFactory` exactly as core intends — which makes the `IconFactory` constructor added in `b8b6ab9` unnecessary, and it has been removed again. That failure mode is gone rather than worked around. `MathUtility`, `StringUtility`, `JavaScriptModuleInstruction` and `GeneralUtility` are no longer imported; only `GroupElement` and `BackendUtility` remain, and both are used.
+
+The worst a future core change can now do here is stop matching the field-control pattern, in which case the buttons revert to vertical. That is a cosmetic regression instead of a fatal one.
+
+A side effect worth knowing: the copy still emitted TYPO3 12.4 markup — `form-wizards-items-aside`, without the `--field-control` modifier — so these fields have been rendering stale class names that 13.4 backend CSS does not target. Delegating to core restores the current markup.
+
+### Still open
+
+`ext_localconf.php:119` still registers this as an XClass of `GroupElement`, so it applies to every group field in the backend rather than only the statement table and triple composer fields the header names. That was kept deliberately, so appearance does not change anywhere. Scoping it properly would mean registering a FormEngine node for a custom `renderType` and setting that `renderType` on the fields that want it, which would revert other group fields to vertical controls and would need TCA changes in consuming extensions.
+
+### Required changes in consuming projects
+
+None. Behaviour and appearance are unchanged, and the extension no longer carries a copy of core code that can silently rot. Projects that took `b8b6ab9` should take this too, since it supersedes that fix.
+
+### Verification
+
+`php -l` clean. PHPStan against `packages/lod/phpstan.neon` stays at 12 errors, its baseline after `b8b6ab9`, and this file analyses clean on its own.
+
+Fourteen assertions were checked in a throwaway `1drop/php-utils:8.5` container. The button-group swap was exercised against a fixture built from core's own source — the literal markup strings core appends around each of the two asides, joined as `render()` joins them — and it confirms the field-control group becomes horizontal, the move group stays vertical, exactly one class is swapped, and nothing else about the markup changes. The normalisation was checked for an already-resolved list, an empty array, a uid of 0, an empty string, null, and a config without `allowed`; the branch that actually loads a record needs a database and was not covered here. The class shape was checked too: no constructor of its own, no properties of its own, and no mention of `$this->iconFactory` anywhere.
+
+A repository-wide audit was re-run, loading every class under a `packages/*/Classes` tree that extends a TYPO3 core class and comparing each `$this->x` read against what is accessible to it. This class no longer appears.
