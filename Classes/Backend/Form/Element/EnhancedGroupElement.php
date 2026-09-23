@@ -4,7 +4,7 @@ namespace Digicademy\Lod\Backend\Form\Element;
 
 use TYPO3\CMS\Backend\Form\Element\GroupElement;
 use TYPO3\CMS\Backend\Utility\BackendUtility;
-use TYPO3\CMS\Core\Imaging\Icon;
+use TYPO3\CMS\Core\Imaging\IconFactory;
 use TYPO3\CMS\Core\Page\JavaScriptModuleInstruction;
 use TYPO3\CMS\Core\Utility\{
     GeneralUtility,
@@ -19,6 +19,30 @@ use TYPO3\CMS\Core\Utility\{
  */
 class EnhancedGroupElement extends GroupElement
 {
+    /**
+     * This class needs its own IconFactory.
+     *
+     * Up to TYPO3 12.4 it could use the inherited one: AbstractFormElement declared
+     * "protected $iconFactory" and populated it in its constructor. TYPO3 13 removed it from
+     * AbstractFormElement and made it a private promoted constructor property of GroupElement
+     * instead, and a private property of the parent is not visible here — $this->iconFactory
+     * silently read an undeclared property and every group field in the backend died with
+     * "Call to a member function getIcon() on null" as soon as it was rendered.
+     *
+     * The signature deliberately mirrors GroupElement's: TYPO3 resolves the constructor
+     * arguments for the class being overridden and hands them to the override — see
+     * AbstractServiceProvider::new(), which calls GeneralUtility::makeInstanceForDi() — so the
+     * single IconFactory argument has to line up. Should core add an argument there, PHP passes
+     * the extra one and ignores it; should it drop the IconFactory, this fails loudly with an
+     * ArgumentCountError rather than silently reading null again.
+     *
+     * parent::__construct() is deliberately not called: render() below is a full override that
+     * never reads GroupElement's own private copy.
+     */
+    public function __construct(
+        private readonly IconFactory $iconFactory,
+    ) {}
+
     /**
      * This will render a selector box into which elements from either
      * the file system or database can be inserted. Relations.

@@ -115,3 +115,41 @@ Two `instanceof.alwaysTrue` findings were resolved on the way by correcting the 
 
 - **Cosmetic:** when the abstract resource is requested *with* plugin arguments (`/resource.html?tx_lod_api[query]=…`), the redirect target carries `tx_lod_api[action]=about&tx_lod_api[controller]=Api` and a cHash. The Extbase route enhancer keys its routes on `iri` and `apiDocumentation`; with neither present no route can be built, so `uriFor()` falls back to plain query arguments. The URL resolves correctly (verified 200 in one hop) -- it is only uglier than the string concatenation it replaced, which preserved the raw query string. Adding a route with an empty `routePath` to the application's `ApiPlugin` enhancer would absorb them.
 - `ApiController::listAction()` dispatches `$this->iriRepository->$findMethod(...)` where `$findMethod` is either `findByArguments` or `findAll`, and calls both with two arguments. PHPStan flags the `findAll()` case. Pre-existing, and fixing it means settling the repository signatures.
+
+---
+
+## 2026-09-23 — TYPO3 13.4: `EnhancedGroupElement` could no longer see the inherited `IconFactory`
+
+### Symptoms
+
+Every group field in the backend died as soon as it was rendered, with `Call to a member function getIcon() on null`. In the NFDI4Culture portal this surfaced as a failing AJAX request when expanding a relation record, because `tx_academy_domain_model_relations` reaches its partner entities through `type => group` fields, but it is not specific to that application: `ext_localconf.php` registers `EnhancedGroupElement` as an XCLASS of core's `GroupElement`, so the breakage applied to every group field in any consuming project.
+
+### Cause
+
+`EnhancedGroupElement` is a copy of core's group element `render()` with two `@metacontext` changes to the hardcoded field-control HTML, and it reads `$this->iconFactory` six times. Up to TYPO3 12.4 that property was inherited: `AbstractFormElement` declared `protected $iconFactory` and populated it in its own constructor with `GeneralUtility::makeInstance(IconFactory::class)`. TYPO3 13 removed it from `AbstractFormElement` altogether and made it a private promoted constructor property of `GroupElement` itself. A private property of a parent class is not visible in a subclass, so `$this->iconFactory` read an undeclared property, which is `null`, and the first `getIcon()` call on it was fatal.
+
+There is no changelog entry for this. The only related one is `#101133 IconFactory->getIcon() signature change`, which this file already handled correctly — it passes `IconSize::SMALL`. The visibility change went unannounced, exactly like the `TcaInline::resolveConnectedRecordUids()` signature change that broke `EXT:academy` the same day.
+
+It was, however, statically detectable, unlike that one. PHPStan at the level this extension already runs reported all six reads as `property.private`, "Access to private property $iconFactory of parent class GroupElement" — they had been sitting unexamined in the extension's error backlog.
+
+### Fix
+
+`EnhancedGroupElement` now declares its own constructor with a promoted `private readonly IconFactory $iconFactory`. The signature deliberately mirrors `GroupElement`'s, because TYPO3 resolves constructor arguments for the class being overridden and hands them to the override — `AbstractServiceProvider::new()` calls `GeneralUtility::makeInstanceForDi()`, which resolves the XCLASS name and instantiates it with the arguments gathered for the original. Should core add an argument there, PHP passes the extra one and ignores it; should it drop the `IconFactory`, this now fails loudly with an `ArgumentCountError` instead of silently reading null again.
+
+`parent::__construct()` is deliberately not called, since `render()` is a full override that never reads `GroupElement`'s own private copy. The now-dead `use TYPO3\CMS\Core\Imaging\Icon;` import was replaced by the `IconFactory` one; nothing else referenced `Icon`.
+
+### Still open
+
+The class remains a copy of a core method body, which is what let this go unnoticed. Whitespace-normalised, 166 of its roughly 253 `render()` lines differ from 13.4 core against only two `@metacontext` markers, and it is missing `$recordTypeValue = $this->data['recordTypeValue'] ?? null;` that 13.4 core added. The file header notes that registering a proper FormEngine node instead of XClassing was tried and had "problems in data handling", so replacing it is not a trivial swap, but it is the right long-term direction.
+
+### Required changes in consuming projects
+
+None. The fix is contained in the extension and restores the behaviour projects already expected. Any project on TYPO3 13.4 that renders a group field in the backend needs this commit, since without it every such field is fatal.
+
+### Verification
+
+`php -l` clean. PHPStan against `packages/lod/phpstan.neon` drops from 18 errors to 12, the six removed being exactly the `property.private` reads above, and the file now analyses clean on its own.
+
+Checked in a throwaway `1drop/php-utils:8.5` container against the project autoloader: the class still implements `NodeInterface`, so it keeps the `backend.form.node` autoconfigure tag that makes it a public, non-shared service; it declares its own constructor; that constructor's signature is identical to core `GroupElement`'s; the `iconFactory` property now resolves to this class rather than the parent; and an instance carries an `IconFactory` rather than null.
+
+A repository-wide audit was run alongside: every class under a `packages/*/Classes` tree that extends a TYPO3 core class was loaded and each `$this->x` read compared against what is actually accessible to it. `EnhancedGroupElement` was the only case of a subclass reading a parent's private property, and it no longer appears. Not fixed, and unrelated: `N4C\CultureRegistry\Domain\Model\Data` and `Software` read nine undeclared properties between them, and several `culture_registry` and `lod` constructors still use implicitly nullable parameters that PHP 8.4 deprecates.
