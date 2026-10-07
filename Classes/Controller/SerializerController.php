@@ -60,10 +60,10 @@ class SerializerController extends ActionController
     {
         // check if Iri is set from flexform or TS (flexform overriding TS)
         if (
-            $this->settings['general']['selectedIri'] ||
-            $this->settings['selectedIri']
+            ($this->settings['general']['selectedIri'] ?? null) ||
+            ($this->settings['selectedIri'] ?? null)
         ) {
-            if ($this->settings['general']['selectedIri']) {
+            if ($this->settings['general']['selectedIri'] ?? null) {
                 $iri = $this->settings['general']['selectedIri'];
             } else {
                 $iri = $this->settings['selectedIri'];
@@ -71,35 +71,36 @@ class SerializerController extends ActionController
             $iri = $this->iriRepository->findByUid($iri);
 
             // otherwise iterate through record mappings configured in TS
-        } elseif ($this->settings['recordToArgumentMapping']) {
+        } elseif ($this->settings['recordToArgumentMapping'] ?? null) {
             // first iterate through all possible tables and try to catch a record from current request arguments
             foreach ($this->settings['recordToArgumentMapping'] as $tablename => $recordConfiguration) {
                 if ($tablename == 'pages') {
                     continue;
                 }
-                if ($recordConfiguration['pluginNamespace']) {
+                $argumentName = $recordConfiguration['argumentName'] ?? '';
+                if ($recordConfiguration['pluginNamespace'] ?? null) {
                     $foreignPluginVars = $this->request->getQueryParams()[$recordConfiguration['pluginNamespace']] ?? [];
                     ArrayUtility::mergeRecursiveWithOverrule(
                         $foreignPluginVars,
                         ($this->request->getParsedBody() ?? [])[$recordConfiguration['pluginNamespace']] ?? []
                     );
-                    if ($foreignPluginVars[$recordConfiguration['argumentName']] > 0) {
-                        $tablenameRecord = $tablename . '_' . (int)$foreignPluginVars[$recordConfiguration['argumentName']];
+                    if (($foreignPluginVars[$argumentName] ?? 0) > 0) {
+                        $tablenameRecord = $tablename . '_' . (int)$foreignPluginVars[$argumentName];
                     }
                 } else {
                     $getParameters = $this->request->getQueryParams();
-                    $postParameters = $this->request->getParsedBody();
-                    if ($getParameters[$recordConfiguration['argumentName']] > 0) {
-                        $tablenameRecord = $tablename . '_' . (int)$getParameters[$recordConfiguration['argumentName']];
-                    } elseif ($postParameters[$recordConfiguration['argumentName']] > 0) {
-                        $tablenameRecord = $tablename . '_' . (int)$postParameters[$recordConfiguration['argumentName']];
+                    $postParameters = $this->request->getParsedBody() ?? [];
+                    if (($getParameters[$argumentName] ?? 0) > 0) {
+                        $tablenameRecord = $tablename . '_' . (int)$getParameters[$argumentName];
+                    } elseif (($postParameters[$argumentName] ?? 0) > 0) {
+                        $tablenameRecord = $tablename . '_' . (int)$postParameters[$argumentName];
                     }
                 }
             }
 
             // if no iri was found check if pages table was mapped (serves as a default)
-            if (!isset($tablenameRecord) && $this->settings['recordToArgumentMapping']['pages']) {
-                $argumentValue = $this->request->getQueryParams()[$this->settings['recordToArgumentMapping']['pages']['argumentName']] ?? null;
+            if (!isset($tablenameRecord) && ($this->settings['recordToArgumentMapping']['pages'] ?? null)) {
+                $argumentValue = $this->request->getQueryParams()[$this->settings['recordToArgumentMapping']['pages']['argumentName'] ?? ''] ?? null;
                 if (!is_null($argumentValue)) {
                     $tablenameRecord = 'pages_' . (int)$argumentValue;
                 }
@@ -123,11 +124,11 @@ class SerializerController extends ActionController
         }
 
         // set serialization format (will always be set even if no iri could be found
-        if ($this->settings['general']['format']) {
+        if ($this->settings['general']['format'] ?? null) {
             $format = $this->settings['general']['format'];
-        } elseif (isset($tablename) && $this->settings['format'][$tablename]) {
+        } elseif (isset($tablename) && ($this->settings['format'][$tablename] ?? null)) {
             $format = $this->settings['format'][$tablename];
-        } elseif ($this->settings['format']['default']) {
+        } elseif ($this->settings['format']['default'] ?? null) {
             $format = $this->settings['format']['default'];
         } else {
             $format = 'jsonld';
@@ -162,10 +163,12 @@ class SerializerController extends ActionController
             // parameters and substitutes GeneralUtility::getIndpEnv().
             $normalizedParams = $this->request->getAttribute('normalizedParams');
 
-            // provide environment vars
+            // provide environment vars. The normalizedParams attribute is normally present in a
+            // frontend request, but guard with nullsafe access so a missing attribute degrades
+            // to empty values instead of a fatal error.
             $environment = [
-                'TYPO3_SITE_BASE_URL' => rtrim($normalizedParams->getSiteUrl(), '/'),
-                'TYPO3_REQUEST_URL' => $normalizedParams->getRequestUrl(),
+                'TYPO3_SITE_BASE_URL' => rtrim((string)$normalizedParams?->getSiteUrl(), '/'),
+                'TYPO3_REQUEST_URL' => $normalizedParams?->getRequestUrl(),
                 'pageArguments' => $this->request->getAttribute('routing'),
             ];
 
