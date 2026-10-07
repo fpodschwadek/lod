@@ -28,12 +28,12 @@
 namespace Digicademy\Lod\Service;
 
 use Digicademy\Lod\Domain\Model\Record;
-use TYPO3\CMS\Backend\Form\FormDataProvider\TcaRecordTitle;
 use TYPO3\CMS\Backend\Utility\BackendUtility;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Package\PackageManager;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Extbase\Persistence\Generic\Mapper\DataMapper;
+use TYPO3\CMS\Core\Localization\LanguageService;
 use TYPO3\CMS\Core\Localization\LanguageServiceFactory;
 
 /**
@@ -76,8 +76,7 @@ class ItemMappingService
         $result = $this->load($record);
 
         if ($result['row']) {
-            $formDataProvider = GeneralUtility::makeInstance(TcaRecordTitle::class);
-            $titleLabel = $GLOBALS['TCA'][$result['tablename']]['ctrl']['title'];
+            $titleLabel = $GLOBALS['TCA'][$result['tablename']]['ctrl']['title'] ?? '';
             if (($GLOBALS['TSFE'] ?? null) !== null) {
                 $translatedTitle = $GLOBALS['TSFE']->sL($titleLabel);
             } else {
@@ -85,20 +84,31 @@ class ItemMappingService
                     ->create('default')
                     ->sL($titleLabel);
             }
-            $tcaProcessing = $formDataProvider->addData([
-                'databaseRow' => $result['row'],
-                'processedTca' => $GLOBALS['TCA'][$result['tablename']],
-                'tablename' => $result['tablename'],
-                'title' => $translatedTitle,
-            ]);
+
+            // BackendUtility::getRecordTitle() delegates to getProcessedValue(), which fetches a
+            // LanguageService from $GLOBALS['LANG']. That global is always set in the TYPO3
+            // backend but not guaranteed during a frontend request — this code runs from an
+            // Extbase AfterObjectThawedEvent, where it can be unset — so ensure one is available
+            // first to avoid a TypeError (getLanguageService() must not return null).
+            if (!(($GLOBALS['LANG'] ?? null) instanceof LanguageService)) {
+                $GLOBALS['LANG'] = GeneralUtility::makeInstance(LanguageServiceFactory::class)
+                    ->create('default');
+            }
+
+            // Resolve the record's human-readable title from its TCA ctrl label configuration
+            // (label / label_alt / label_userFunc). Unlike the FormEngine data provider
+            // TcaRecordTitle, getRecordTitle() does not require a fully initialised FormEngine
+            // "result" array, so it avoids the "Undefined array key" warnings (e.g.
+            // 'isInlineChild') raised when that structure is only partially populated.
+            $recordTitle = BackendUtility::getRecordTitle($result['tablename'], $result['row']);
 
             $item = GeneralUtility::makeInstance(Record::class);
-            $item->setLabel($tcaProcessing['recordTitle']);
-            $item->setComment($tcaProcessing['title']);
+            $item->setLabel($recordTitle);
+            $item->setComment($translatedTitle);
             $item->setTablename($result['tablename']);
-            $item->setRow($tcaProcessing['databaseRow']);
-            $item->_setProperty('uid', (int)$tcaProcessing['databaseRow']['uid']);
-            $item->setPid($tcaProcessing['databaseRow']['pid']);
+            $item->setRow($result['row']);
+            $item->_setProperty('uid', (int)$result['row']['uid']);
+            $item->setPid($result['row']['pid']);
             $domainObject = $this->map($result['row'], $result['tablename']);
             if ($domainObject !== null) {
                 $item->setDomainObject($domainObject);
