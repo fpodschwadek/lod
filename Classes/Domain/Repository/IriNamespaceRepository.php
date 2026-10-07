@@ -65,7 +65,7 @@ class IriNamespaceRepository extends Repository
         }
 
         // optionally extend storagePids for the query
-        if ($settings[$action]['additionalPidList']) {
+        if ($settings[$action]['additionalPidList'] ?? null) {
             $additionalPidList = GeneralUtility::intExplode(',', $settings[$action]['additionalPidList'], true);
             $query->getQuerySettings()->setStoragePageIds(
                 array_merge($query->getQuerySettings()->getStoragePageIds(), $additionalPidList)
@@ -98,7 +98,7 @@ class IriNamespaceRepository extends Repository
         }
 
         // optionally extend storagePids for the query
-        if ($settings[$action]['additionalPidList']) {
+        if ($settings[$action]['additionalPidList'] ?? null) {
             $additionalPidList = GeneralUtility::intExplode(',', $settings[$action]['additionalPidList'], true);
             $query->getQuerySettings()->setStoragePageIds(
                 array_merge($query->getQuerySettings()->getStoragePageIds(), $additionalPidList)
@@ -126,12 +126,12 @@ class IriNamespaceRepository extends Repository
 
         switch ($action) {
             case 'show':
-                if ($settings['show']['namespaceList']) {
+                if ($settings['show']['namespaceList'] ?? null) {
                     $namespaceList = GeneralUtility::intExplode(',', $settings['show']['namespaceList']);
                 }
                 break;
             case 'list':
-                if ($settings['list']['namespaceList']) {
+                if ($settings['list']['namespaceList'] ?? null) {
                     $namespaceList = GeneralUtility::intExplode(',', $settings['list']['namespaceList']);
                 }
                 break;
