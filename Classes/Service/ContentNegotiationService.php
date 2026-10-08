@@ -194,12 +194,12 @@ class ContentNegotiationService
             }
             $type = $type . '.';
             if (
-                $this->typoScriptSetup[$type]['typeNum'] == $key
-                && $this->typoScriptSetup[$type]['config.']['additionalHeaders.']
+                ($this->typoScriptSetup[$type]['typeNum'] ?? null) == $key
+                && !empty($this->typoScriptSetup[$type]['config.']['additionalHeaders.'])
             ) {
                 $additionalHeaders = $this->typoScriptSetup[$type]['config.']['additionalHeaders.'];
                 foreach ($additionalHeaders as $additionalHeader) {
-                    if (preg_match('/Content-type:/', $additionalHeader['header'])) {
+                    if (preg_match('/Content-type:/', $additionalHeader['header'] ?? '')) {
                         $this->availableMimeTypes[$key] = str_replace('Content-type:', '', $additionalHeader['header']);
                     }
                 }
