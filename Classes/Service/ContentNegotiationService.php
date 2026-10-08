@@ -27,7 +27,7 @@
 
 namespace Digicademy\Lod\Service;
 
-use TYPO3\CMS\Core\Http\ServerRequest;
+use Psr\Http\Message\ServerRequestInterface;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 /**
@@ -69,16 +69,25 @@ class ContentNegotiationService
     /**
      * Content negotiation: Determines the best mime type for a response by negotiating
      * between mime types accepted by the client and mime types available from TypoScript.
+     *
+     * The current PSR-7 request is passed in by the caller so the service reads the live
+     * request state (TypoScript setup, resolved page arguments, Accept header) rather than
+     * relying on `$GLOBALS`; this is required because a PSR-7 request cannot be autowired
+     * through the DI container.
+     *
+     * @param ServerRequestInterface $request The current frontend request
      */
-    public function __construct(
-        protected readonly ServerRequest $request
-    ) {
-        $this->typoScriptSetup = $GLOBALS['TYPO3_REQUEST']->getAttribute('frontend.typoscript')->getSetupArray();
-        //To do: make sure the request is passed on to this service!
+    public function negotiate(ServerRequestInterface $request): void
+    {
+        $this->typoScriptSetup = $request->getAttribute('frontend.typoscript')->getSetupArray();
 
-        $pageType = $request->getQueryParams()['type'] ?? $GLOBALS['TSFE']->getPageArguments()->getPageType();
+        // Prefer an explicit `type` query argument, otherwise fall back to the page type
+        // resolved by routing (PSR-7 `routing` attribute = PageArguments), defaulting to 0.
+        $pageType = $request->getQueryParams()['type']
+            ?? $request->getAttribute('routing')?->getPageType()
+            ?? 0;
 
-        $this->setAcceptedMimeTypes();
+        $this->setAcceptedMimeTypes($request);
         $this->setAvailableMimeTypes();
 
         // if a page type is already set, format and content type can be set directly
@@ -156,11 +165,13 @@ class ContentNegotiationService
     /**
      * Setter for accepted mime types:
      * Compiles an array of accepted mime types from client
+     *
+     * @param ServerRequestInterface $request The current frontend request
      */
-    public function setAcceptedMimeTypes(): void
+    public function setAcceptedMimeTypes(ServerRequestInterface $request): void
     {
         // Use PSR-7 request to get Accept header
-        $httpAcceptHeader = $this->request->getHeaderLine('Accept');
+        $httpAcceptHeader = $request->getHeaderLine('Accept');
         if ($httpAcceptHeader) {
             $this->acceptedMimeTypes = $this->processAcceptHeader($httpAcceptHeader);
         } else {

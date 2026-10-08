@@ -90,11 +90,17 @@ class ApiController extends ActionController
      */
     public function aboutAction(): ResponseInterface
     {
+        // run content negotiation against the live request before reading its results below
+        $this->contentNegotiationService->negotiate($this->request);
+
+        // the page type resolved by routing (PSR-7 `routing` attribute = PageArguments)
+        $pageArguments = $this->request->getAttribute('routing');
+
         // check if pageType is set (either via param or masked through PageTypeSuffix)
         if ($this->request->getParsedBody()['type'] ?? $this->request->getQueryParams()['type'] ?? null) {
             $pageType = $this->request->getParsedBody()['type'] ?? $this->request->getQueryParams()['type'] ?? null;
-        } elseif ($GLOBALS['TSFE']->getPageArguments()->getPageType() > 0) {
-            $pageType = $GLOBALS['TSFE']->getPageArguments()->getPageType();
+        } elseif (($pageArguments?->getPageType() ?? 0) > 0) {
+            $pageType = $pageArguments->getPageType();
         } else {
             $pageType = 0;
         }
