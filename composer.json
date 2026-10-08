@@ -40,6 +40,11 @@
 		  "Digicademy\\Lod\\": "Classes/"
 		}
 	},
+	"autoload-dev": {
+		"psr-4": {
+		  "Digicademy\\Lod\\Tests\\": "Tests/"
+		}
+	},
 	"extra": {
 		"typo3/cms": {
 			"extension-key": "lod"
@@ -47,7 +52,8 @@
 	},
 	"scripts": {
 		"phpstan": "phpstan analyse -c phpstan.neon --memory-limit 2G",
-		"phpstan-debug": "phpstan analyse -c phpstan.neon --memory-limit 2G --debug"
+		"phpstan-debug": "phpstan analyse -c phpstan.neon --memory-limit 2G --debug",
+		"test": "codecept run Unit"
 	},
 	"scripts-aliases": {
 		"phpstan": ["analyse", "analyze", "stan"]
