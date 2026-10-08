@@ -1,0 +1,11 @@
+namespace: Digicademy\Lod\Tests
+support_namespace: Support
+paths:
+    tests: Tests
+    output: Tests/_output
+    data: Tests/_data
+    support: Tests/Support
+settings:
+    shuffle: true
+    lint: true
+    memory_limit: 1024M
