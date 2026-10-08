@@ -36,38 +36,35 @@ use TYPO3\CMS\Core\Utility\GeneralUtility;
 class ContentNegotiationService
 {
     /**
-     * MIME types accepted by the client
+     * MIME types accepted by the client, ordered best to least preferred
      *
-     * @var array
+     * @var array<int, string>
      */
-    protected $acceptedMimeTypes = [];
+    protected array $acceptedMimeTypes = [];
 
     /**
-     * MIME types available on the server (configured TYPO3 page types)
+     * MIME types available on the server, keyed by configured TYPO3 page type
      *
-     * @var array
+     * @var array<int, string>
      */
-    protected $availableMimeTypes = [];
+    protected array $availableMimeTypes = [];
 
     /**
      * Negotiated content type (defaults to text/html)
-     *
-     * @var string
      */
-    protected $contentType = 'text/html';
+    protected string $contentType = 'text/html';
 
     /**
      * Extbase format
-     *
-     * @var string
      */
-    protected $format = 'html';
+    protected string $format = 'html';
 
     /**
      * Frontend TypoScript setup array.
-     * @var array
+     *
+     * @var array<string, mixed>
      */
-    protected $typoScriptSetup;
+    protected array $typoScriptSetup;
 
     /**
      * Content negotiation: Determines the best mime type for a response by negotiating
@@ -149,7 +146,7 @@ class ContentNegotiationService
     /**
      * Getter for accepted mime types
      *
-     * @return array
+     * @return array<int, string>
      */
     public function getAcceptedMimeTypes(): array
     {
@@ -174,7 +171,7 @@ class ContentNegotiationService
     /**
      * Getter for available mime types
      *
-     * @return array
+     * @return array<int, string>
      */
     public function getAvailableMimeTypes(): array
     {
@@ -209,7 +206,7 @@ class ContentNegotiationService
 
     /**
      * @param string $httpAcceptHeader
-     * @return array
+     * @return array<int, string>
      */
     private function processAcceptHeader(string $httpAcceptHeader): array
     {
