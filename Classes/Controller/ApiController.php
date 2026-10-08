@@ -93,8 +93,10 @@ class ApiController extends ActionController
         // run content negotiation against the live request before reading its results below
         $this->contentNegotiationService->negotiate($this->request);
 
-        // the page type resolved by routing (PSR-7 `routing` attribute = PageArguments)
+        // the page arguments resolved by routing (PSR-7 `routing` attribute = PageArguments),
+        // and the current page id derived from them (replaces $GLOBALS['TSFE']->id)
         $pageArguments = $this->request->getAttribute('routing');
+        $pageId = $pageArguments?->getPageId() ?? 0;
 
         // check if pageType is set (either via param or masked through PageTypeSuffix)
         if ($this->request->getParsedBody()['type'] ?? $this->request->getQueryParams()['type'] ?? null) {
@@ -126,7 +128,7 @@ class ApiController extends ActionController
         $environment = [
             'TYPO3_SITE_BASE_URL' => rtrim($normalizedParams->getSiteUrl(), '/'),
             'TYPO3_REQUEST_URL' => $normalizedParams->getRequestUrl(),
-            'TSFE' => ['pageArguments' => $GLOBALS['TSFE']->pageArguments, 'page' => $GLOBALS['TSFE']->page],
+            'TSFE' => ['pageArguments' => $pageArguments],
         ];
 
         // prepare response
@@ -137,8 +139,8 @@ class ApiController extends ActionController
 
         // hydra link headers (@see: https://www.hydra-cg.com/spec/latest/core/#example-16-discovering-hydra-api-documentation-documents)
         if (is_array($this->settings['apiDocumentation']['keys'])) {
-            if (array_key_exists($GLOBALS['TSFE']->id, $this->settings['apiDocumentation']['keys'])) {
-                $apiDocumentationKey = $this->settings['apiDocumentation']['keys'][$GLOBALS['TSFE']->id];
+            if (array_key_exists($pageId, $this->settings['apiDocumentation']['keys'])) {
+                $apiDocumentationKey = $this->settings['apiDocumentation']['keys'][$pageId];
             } else {
                 $apiDocumentationKey = $this->settings['apiDocumentation']['keys'][0];
             }
@@ -146,7 +148,7 @@ class ApiController extends ActionController
             $uriBuilder = GeneralUtility::makeInstance(UriBuilder::class);
             $uri = $uriBuilder
               ->reset()
-              ->setTargetPageUid($GLOBALS['TSFE']->id)
+              ->setTargetPageUid($pageId)
               ->setArguments(['type' => '2014'])
               ->uriFor('about', ['apiDocumentation' => $apiDocumentationKey], 'Api', 'lod', 'api');
             $apiDocumentationPath = preg_replace('/(\?|\&)(cHash)(.*)$/', '', $uri);

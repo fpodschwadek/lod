@@ -162,15 +162,14 @@ class SerializerController extends ActionController
             // Get an instance of NormalizedParams, which provides normalized server
             // parameters and substitutes GeneralUtility::getIndpEnv().
             $normalizedParams = $this->request->getAttribute('normalizedParams');
-            $tsfe = $GLOBALS['TSFE'] ?? null;
 
-            // provide environment vars. The normalizedParams attribute and $GLOBALS['TSFE']
-            // are normally present in a frontend request, but guard with nullsafe access so a
-            // missing attribute/global degrades to empty values instead of a fatal error.
+            // provide environment vars. The normalizedParams and routing attributes are
+            // normally present in a frontend request, but guard with nullsafe access so a
+            // missing attribute degrades to empty values instead of a fatal error.
             $environment = [
                 'TYPO3_SITE_BASE_URL' => rtrim((string)$normalizedParams?->getSiteUrl(), '/'),
                 'TYPO3_REQUEST_URL' => $normalizedParams?->getRequestUrl(),
-                'TSFE' => ['pageArguments' => $tsfe?->pageArguments],
+                'TSFE' => ['pageArguments' => $this->request->getAttribute('routing')],
             ];
 
             $this->view->assign('environment', $environment);
