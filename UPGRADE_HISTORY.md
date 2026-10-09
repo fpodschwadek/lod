@@ -402,3 +402,7 @@ Data providers have to be declared with `Codeception\Attribute\DataProvider` (or
 ### Verification
 
 `vendor/bin/codecept run Unit -c packages/lod` in `1drop/php-utils:8.5`: 82 tests, 168 assertions, all passing after the two fixes (four failing before them, as expected). PHPStan against `phpstan.neon`: 11 errors, unchanged, none in the changed classes. The `Integration` suite could not be run in the sandbox: `Bootstrap::init()` starts, but aborts on a PHP 8.4 deprecation in `culture_portal`'s `SparqlQueryService` (see the application's upgrade history).
+
+## 2026-10-09 — Implicitly nullable parameter in `StatementRepository::findByPosition()`
+
+`2d22ba6`. `findByPosition()` declared `IriNamespace $graph = null`, implicitly nullable, which PHP 8.4 deprecates. Where `E_DEPRECATED` is in `SYS.exceptionalErrors`, the deprecation is thrown as soon as the class is compiled — for example during `Bootstrap::init()` in an `Integration` test run. The parameter is now `?IriNamespace`. No changes needed in consuming projects. A lint of `Classes/` with `E_ALL` reports no further deprecations; PHPStan goes from 11 errors to 10.
