@@ -333,3 +333,20 @@ None. Projects with a default key `0` (as shipped) or a key for every API page s
 ### Verification
 
 `php -l` clean on both files; PHPStan against `phpstan.neon` reports no error in either file before or after, 11 for the extension. The real `showAction()` was run old against new with stubbed repositories, view, configuration manager and logger for four cases. Old: the undefined-key warning; correct output for a vocabulary with IRI; `TypeError` for a vocabulary without IRI; `Error … getIri() on null` for an unloadable one. New: HTTP 200 in all four, identical assignments for the vocabulary with IRI, `graph = null` for the one without, and for the unloadable one no assignments plus the warning with vocabulary and content element uid. Not exercised on the running portal, which has no vocabularies and no live `lod_vocabulary` elements.
+
+## 2026-10-09 — Table tracking stores label and comment languages as configured
+
+`TableTrackingService` cast `tableTracking.<table>.iri.label_language` and `comment_language` to `int` when it created an IRI for a tracked record. Both columns are ISO 639-1 codes (`varchar(2) DEFAULT ''`, a select of language codes in TCA), so a configured `label_language = en` was stored as `'0'`, and an unconfigured language was stored as `'0'` rather than left empty, because the default was the integer `0`. Not an upgrade regression: the cast was introduced with the stdWrap configuration of table tracking in `f122d90` (2020-03-27) and the columns have been ISO codes since `9c859de` (2019-12-27), so every version since 2020 was affected. The 13.4 guard refactor (`4d12b78`) had kept the cast deliberately, pending this decision.
+
+### Changes made
+
+Both values are now taken as the stdWrap result without a cast, with `''` as the default, the same way `content_language` of the generated representations already was. A configured code — plain, `.value` or any other stdWrap — is stored as given, and an unconfigured language stays empty.
+
+### Required changes in consuming projects
+
+- None in configuration. Projects that configure a language get it stored from now on; check that the configured value is a two-letter code, since the columns hold two characters.
+- Existing IRIs are not changed: rows already carrying `'0'` keep it. `'0'` is not rendered as a language tag (Fluid treats it as false), but projects that want clean data must update those rows themselves.
+
+### Verification
+
+`php -l` clean; PHPStan against `phpstan.neon` reports no error in the file, 11 for the extension. The real `stdWrapOptional()` was called with a stubbed `ContentObjectRenderer` for `label_language = en`, `label_language.value = en`, `label_language.field = <field>` and no configuration: the old cast produced `0` in all four cases, the new code `'en'`, `'en'`, the field's value and `''`.
