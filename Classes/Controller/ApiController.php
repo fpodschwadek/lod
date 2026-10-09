@@ -338,10 +338,16 @@ class ApiController extends ActionController
      */
     private function apiDocumentationAction(): void
     {
-        // if no valid API documentation key is given or format is not JSON-LD return 404
+        // if no valid API documentation key is given or format is not JSON-LD return 404; no configured keys means no
+        // key is valid. TypoScript values are strings, so the comparison can be strict.
         $apiDocumentationKey = $this->request->getArgument('apiDocumentation');
+        $apiDocumentationKeys = $this->settings['apiDocumentation']['keys'] ?? [];
 
-        if (!in_array($apiDocumentationKey, $this->settings['apiDocumentation']['keys']) || $this->request->getFormat() != 'jsonld') {
+        if (
+            !is_array($apiDocumentationKeys)
+            || !in_array($apiDocumentationKey, $apiDocumentationKeys, true)
+            || $this->request->getFormat() != 'jsonld'
+        ) {
             throw new PropagateResponseException($this->pageNotFound(), 4215392081);
         }
 
