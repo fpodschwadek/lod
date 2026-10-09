@@ -309,3 +309,27 @@ None. Projects with a default key `0` (as shipped) or a key for every API page s
 ### Verification
 
 `php -l` clean; PHPStan unchanged at one pre-existing error in `ApiController.php` and 11 for the extension. Key resolution was compared old against new for six configurations: identical where a key resolves (default only, per-page with and without default); where none does (per-page miss, empty keys, nested value) the old code warned or produced an array, the new one omits the header. On the running portal `/resource.json` and `/resource/about.html` still send `Access-Control-Allow-Origin: *` and `Link: <…/resource/contexts/api.json>; rel="…hydra/core#apiDocumentation"`.
+
+## 2026-10-09 — Vocabulary plugin: missing or unloadable vocabulary no longer breaks the page
+
+`VocabularyController::showAction()` read `settings.general.selectedVocabulary` and used the result without checks. It failed in three ways, none of them new in 13.4 (the method is unchanged from 12.4 apart from the `environment` array):
+
+- **No vocabulary selected**, e.g. a `lod_vocabulary` element created programmatically, imported or migrated by the CType wizard, whose FlexForm was never saved (`minitems = 1` is only enforced on save): `Undefined array key "selectedVocabulary"`, after which the element rendered without a vocabulary.
+- **Selected vocabulary cannot be loaded** — deleted, hidden, outside its start/end time, or a stale uid after an import: `findByUid()` returned `null` and `$selectedVocabulary->getIri()` threw `Error: Call to a member function getIri() on null`, taking the whole page down.
+- **Vocabulary without an IRI**, which the TCA allows (`iri` has `minitems = 0`): `Vocabulary::getIri(): Iri` threw a `TypeError` because it returned `null`.
+
+### Changes made
+
+- The setting is read with a fallback and cast explicitly, replacing the assignment-inside-`if` `(int)$uid = …` construct. Without a selection the element renders without a vocabulary, as before, but silently.
+- If a vocabulary is selected but cannot be loaded, the element renders the same way and a **warning is logged**: `Vocabulary {uid} selected in content element {uid} cannot be loaded; it may be deleted, hidden or outside its start/end time.` The logger is injected into the controller's constructor (`Psr\Log\LoggerInterface`, channel = controller class), so it goes wherever the installation's `LOG` configuration sends warnings — by default `var/log/typo3_*.log`.
+- `Vocabulary::getIri()` now returns `?Iri`. For a vocabulary without an IRI the controller skips the graph lookup and assigns `graph = null`; the vocabulary itself and the namespaces are still assigned.
+
+### Required changes in consuming projects
+
+- Code that calls `Vocabulary::getIri()` must handle `null`. Subclasses overriding it with return type `Iri` remain compatible (a narrower return type is allowed).
+- Subclasses of `VocabularyController` that override the constructor must accept and pass on the new fourth argument `LoggerInterface $logger`.
+- Flush the caches after updating: the compiled DI container still passes three constructor arguments until it is rebuilt.
+
+### Verification
+
+`php -l` clean on both files; PHPStan against `phpstan.neon` reports no error in either file before or after, 11 for the extension. The real `showAction()` was run old against new with stubbed repositories, view, configuration manager and logger for four cases. Old: the undefined-key warning; correct output for a vocabulary with IRI; `TypeError` for a vocabulary without IRI; `Error … getIri() on null` for an unloadable one. New: HTTP 200 in all four, identical assignments for the vocabulary with IRI, `graph = null` for the one without, and for the unloadable one no assignments plus the warning with vocabulary and content element uid. Not exercised on the running portal, which has no vocabularies and no live `lod_vocabulary` elements.
