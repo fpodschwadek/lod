@@ -58,9 +58,10 @@ class ItemMappingService
     {
         $item = null;
 
+        // an unresolvable reference (missing, deleted, hidden or expired record) maps to no item
         $result = $this->load($record);
 
-        if ($result['row']) {
+        if (isset($result['row'])) {
             $item = $this->map($result['row'], $result['tablename']);
         }
 
@@ -75,9 +76,10 @@ class ItemMappingService
     {
         $item = null;
 
+        // an unresolvable reference (missing, deleted, hidden or expired record) maps to no item
         $result = $this->load($record);
 
-        if ($result['row']) {
+        if (isset($result['row'])) {
             $titleLabel = $GLOBALS['TCA'][$result['tablename']]['ctrl']['title'] ?? '';
             $languageService = $this->languageServiceFactory->create('default');
             $translatedTitle = $languageService->sL($titleLabel);
@@ -118,8 +120,10 @@ class ItemMappingService
     /**
      * Loads a record (syntax: tablename_uid)
      *
+     * The query applies TYPO3's default restrictions, so deleted, hidden and expired records are not found.
+     *
      * @param string $record
-     * @return array
+     * @return array{tablename?: string, uid?: string, row?: array<string, mixed>} empty if the record was not found
      */
     protected function load(string $record): ?array
     {

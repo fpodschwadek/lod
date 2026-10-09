@@ -410,3 +410,15 @@ Data providers have to be declared with `Codeception\Attribute\DataProvider` (or
 ## 2026-10-09 — Correction: `FailOnPhpErrorsTrait` removed
 
 The test entry above stated that PHPUnit only reports PHP warnings, and added `Tests/Support/FailOnPhpErrorsTrait.php` to turn them into exceptions. That was wrong: Codeception installs its own error handler, which throws for every error level in its `error_level` setting (default `E_ALL & ~E_DEPRECATED`), so a warning raised by the code under test already fails the test. The trait was redundant and has been removed; the tests that pin down warning-free behaviour call the code directly. Verified by running them against the code before `b445d68` and `6e90784`: the three affected tests still fail there, and all 82 pass on the current code.
+
+## 2026-10-09 — `ItemMappingService` maps unresolvable references to no item
+
+`mapItem()` and `mapGenericItem()` read `$result['row']` unguarded, but `load()` returns an empty array when it finds no row. Because `load()` queries through `Connection::select()`, which applies TYPO3's default restrictions, that is the case not only for missing records but also for deleted, hidden and expired ones. Reported as `PHP Warning: Undefined array key "row" … ItemMappingService.php line 63` on the NFDI4Culture registry page, where a search index listed deleted relations that were mapped through `mapItem()`. Both methods now return `null` for such a reference, which their `?object` / `?Record` return types already announced; `load()` documents the restrictions and its return shape.
+
+### Required changes in consuming projects
+
+None. Callers must already handle `null`; those that did not (`$item->…` on the result) failed for these references before, too.
+
+### Verification
+
+`php -l` clean; PHPStan: no error in the file; Unit suite 82 tests passing. In the NFDI4Culture portal, `/resources/registry.html` renders again (HTTP 200) while the index still lists the deleted relation.
