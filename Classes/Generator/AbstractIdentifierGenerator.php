@@ -45,19 +45,20 @@ abstract class AbstractIdentifierGenerator
      */
     protected function setIdentifierPrefix(string $identifier): string
     {
-        switch ($this->record['type']) {
+        // bnodes have no type column and fall through to the default (bnode) prefix
+        switch ($this->record['type'] ?? '') {
             case '1':
-                ($this->configuration['entityPrefix']) ?
+                ($this->configuration['entityPrefix'] ?? '') ?
                     $prefixedIdentifier = $this->configuration['entityPrefix'] . $identifier :
                     $prefixedIdentifier = $identifier;
                 break;
             case '2':
-                ($this->configuration['propertyPrefix']) ?
+                ($this->configuration['propertyPrefix'] ?? '') ?
                     $prefixedIdentifier = $this->configuration['propertyPrefix'] . $identifier :
                     $prefixedIdentifier = $identifier;
                 break;
             default:
-                ($this->configuration['bnodePrefix']) ?
+                ($this->configuration['bnodePrefix'] ?? '') ?
                     $prefixedIdentifier = $this->configuration['bnodePrefix'] . $identifier :
                     $prefixedIdentifier = $identifier;
                 break;

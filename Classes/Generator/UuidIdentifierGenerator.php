@@ -36,7 +36,7 @@ class UuidIdentifierGenerator extends AbstractIdentifierGenerator implements Ide
      */
     public function generate(): string
     {
-        if ($this->configuration['xmlConformance'] == '1') {
+        if (($this->configuration['xmlConformance'] ?? '') == '1') {
             do {
                 $identifier = $this->createUUID();
             } while (preg_match('/^[a-z]/', $identifier) !== 1);

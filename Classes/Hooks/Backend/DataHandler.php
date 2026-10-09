@@ -130,7 +130,8 @@ class DataHandler
         }
         if ($status == 'update') {
             $record = BackendUtility::getRecord($table, (int)$id);
-            $sysLanguageUid = $record['sys_language_uid'];
+            // null for tables without a language column: no table tracking then, as before
+            $sysLanguageUid = $record['sys_language_uid'] ?? null;
         }
 
         // track tables during IRI generation but only for records in the default or ALL language
@@ -322,16 +323,18 @@ class DataHandler
         // try to get TSConfig for current backend page (and NOT the page the IRI is possibly saved)
         // this is very likely the pid of the current parent record of the IRI
         // as fallback we take the pid the IRI is saved on (also for editing contexts without parent record)
-        if ($record['record']) {
+        // bnodes have no record column; the parent record may have been deleted meanwhile
+        if ($record['record'] ?? '') {
             $parentRecordPid = BackendUtility::getRecord($record['record_tablename'], (int)$record['record_uid'], 'pid');
-            ($parentRecordPid['pid']) ? $pid = $parentRecordPid['pid'] : $pid = $record['pid'];
+            ($parentRecordPid['pid'] ?? 0) ? $pid = $parentRecordPid['pid'] : $pid = $record['pid'];
         } else {
             $pid = $record['pid'];
         }
         $TSConfig = BackendUtility::getPagesTSconfig($pid);
 
         // on copy action empty the value field - copy action can be guessed because t3_origuid is set
-        if ($fieldArray['t3_origuid'] > 0) {
+        // (DataHandler only passes t3_origuid when copying, so it is absent on plain new/update)
+        if ((int)($fieldArray['t3_origuid'] ?? 0) > 0) {
             $record['value'] = '';
         }
 
@@ -339,7 +342,7 @@ class DataHandler
         $tableConfiguredForIdentifierGeneration = false;
 
         // optional identifier generation for iri table
-        if ($table == 'tx_lod_domain_model_iri' && $TSConfig['tx_lod.']['settings.']['identifierGenerator.']['tx_lod_domain_model_iri.']) {
+        if ($table == 'tx_lod_domain_model_iri' && ($TSConfig['tx_lod.']['settings.']['identifierGenerator.']['tx_lod_domain_model_iri.'] ?? [])) {
             $tableConfiguredForIdentifierGeneration = true;
             // mandatory identifier generation for bnode table
         } elseif ($table == 'tx_lod_domain_model_bnode') {
@@ -357,11 +360,11 @@ class DataHandler
         if ($tableConfiguredForIdentifierGeneration == true && $record['value'] === '') {
             // get generator service
             $generatorService = GeneralUtility::makeInstance(IdentifierGeneratorService::class);
-            $generatorName = $TSConfig['tx_lod.']['settings.']['identifierGenerator.'][$table . '.']['type'];
+            $generatorName = (string)($TSConfig['tx_lod.']['settings.']['identifierGenerator.'][$table . '.']['type'] ?? '');
 
             if (class_exists($generatorName)) {
                 // get configuration
-                if ($TSConfig['tx_lod.']['settings.']['identifierGenerator.'][$table . '.'][$generatorName . '.']) {
+                if ($TSConfig['tx_lod.']['settings.']['identifierGenerator.'][$table . '.'][$generatorName . '.'] ?? []) {
                     $generatorConfiguration = $TSConfig['tx_lod.']['settings.']['identifierGenerator.'][$table . '.'][$generatorName . '.'];
                 } else {
                     $generatorConfiguration = [];
@@ -404,7 +407,8 @@ class DataHandler
         $iri = BackendUtility::getRecord('tx_lod_domain_model_iri', (int)$id);
         $namespace = [];
         if ($iri['namespace'] > 0) {
-            $namespace = BackendUtility::getRecord('tx_lod_domain_model_namespace', (int)$iri['namespace']);
+            // null if the namespace record has been deleted: fall back to the bare value
+            $namespace = BackendUtility::getRecord('tx_lod_domain_model_namespace', (int)$iri['namespace']) ?? [];
         }
         array_key_exists('prefix', $namespace) ? $prefixValue = $namespace['prefix'] . ':' . $iri['value'] : $prefixValue = $iri['value'];
         // update record
