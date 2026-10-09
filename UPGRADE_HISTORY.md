@@ -350,3 +350,23 @@ Both values are now taken as the stdWrap result without a cast, with `''` as the
 ### Verification
 
 `php -l` clean; PHPStan against `phpstan.neon` reports no error in the file, 11 for the extension. The real `stdWrapOptional()` was called with a stubbed `ContentObjectRenderer` for `label_language = en`, `label_language.value = en`, `label_language.field = <field>` and no configuration: the old cast produced `0` in all four cases, the new code `'en'`, `'en'`, the field's value and `''`.
+
+## 2026-10-09 — `DataHandler` hook: no after-insert processing for records whose insert was suppressed
+
+Localizing a record that has an IRI as inline child — reported for a product — raised `PHP Warning: Undefined array key "NEW…" in …/Classes/Hooks/Backend/DataHandler.php line 319`.
+
+### Cause
+
+DataHandler localizes inline children together with their parent, including IRIs, which are stored with `sys_language_uid = -1`. `processDatamap_postProcessFieldArray()` deliberately empties `$fieldArray` for IRIs, statements and representations in any language above 0, so `DataHandler::insertDB()` returns without inserting (there is no `pid`) and `substNEWwithIDs` gets no entry for the placeholder. Core still calls `processDatamap_afterDatabaseOperations()` with the `NEW…` id, and `generateIdentifier()` (line 319) and `generatePrefixValue()` (line 405) both resolved it through `$pObj->substNEWwithIDs[$id]` unguarded; the reads that followed warned on the resulting `null`, and `generatePrefixValue()` issued an `UPDATE … WHERE uid = 0`. The code is unchanged from 12.4, where the warnings were not reported and the updates matched no row.
+
+### Changes made
+
+`processDatamap_afterDatabaseOperations()` returns immediately for a `new` record without an entry in `substNEWwithIDs`. Nothing was inserted, so there is no identifier or prefix value to generate and nothing to track; previously `trackTables()` was skipped for these records only because the emptied field array happened to lack `sys_language_uid`.
+
+### Required changes in consuming projects
+
+None. A localized parent still gets no localized IRI, exactly as before; only the warnings and the no-op update are gone.
+
+### Verification
+
+`php -l` clean; PHPStan against `phpstan.neon` reports no error in the file before or after, 11 for the extension. The real hook was called with a stubbed `BackendUtility` and database connection. For a suppressed insert the old code raised the reported warning at line 319 and four more and issued `UPDATE … uid=0`; the new code returns without warnings or updates. For an inserted IRI both versions pass on to identifier and prefix-value generation and write `prefix_value` for the real uid; `trackTables()` could not be run outside a booted TYPO3 in either version.
