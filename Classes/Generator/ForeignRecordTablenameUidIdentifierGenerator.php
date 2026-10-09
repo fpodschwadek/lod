@@ -40,11 +40,13 @@ class ForeignRecordTablenameUidIdentifierGenerator extends AbstractIdentifierGen
     public function generate(): string
     {
         $identifier = '';
+        // includeTablename is optional configuration; bnodes have no record field
+        $record = (string)($this->record['record'] ?? '');
 
-        if ($this->configuration['includeTablename'] == '1' && $this->record['record']) {
-            $identifier = $this->record['record'];
-        } elseif ($this->record['record']) {
-            $tableNameAndUid = BackendUtility::splitTable_Uid($this->record['record']);
+        if (($this->configuration['includeTablename'] ?? '') == '1' && $record) {
+            $identifier = $record;
+        } elseif ($record) {
+            $tableNameAndUid = BackendUtility::splitTable_Uid($record);
             $identifier = $tableNameAndUid[1];
         }
 
