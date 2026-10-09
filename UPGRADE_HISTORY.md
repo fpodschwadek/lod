@@ -211,3 +211,25 @@ None. Records in language 0 or -1 behave exactly as before.
 ### Verification
 
 `php -l` clean. PHPStan against `phpstan.neon` stays at 12 errors and this file analyses clean. Seven stubbed behavioural assertions covering the missing key, stored languages 0 and 2, new records, a submitted key, an unrelated table and a missing record all pass with warnings promoted to exceptions.
+
+## 2026-10-09 — Optional keys guarded in identifier generation, table tracking, IRI type filter and API search
+
+Commits `0e80692` and `4d12b78`. Under PHP 8 every read of an absent array key raises a warning, which projects that pass `E_WARNING` to TYPO3's error handler show in the backend. An audit of `Classes/` found the following reads on routine paths and guarded them; each default reproduces the previous outcome of the missing key reading as `null`.
+
+- `Hooks/Backend/DataHandler`: `t3_origuid` (core passes it only when copying), `$record['record']` (the bnode table has no such column), the optional `identifierGenerator` TSConfig blocks, `tableTracking.<table>.track`, and `sys_language_uid` in `processDatamap_afterDatabaseOperations()` for tables without a language column. A deleted namespace record no longer reaches `array_key_exists()` as null (`TypeError`); a deleted parent record of an IRI falls back to the IRI's pid.
+- `Generator/AbstractIdentifierGenerator`, `UuidIdentifierGenerator`: `$this->record['type']` (absent for bnodes) and the optional `entityPrefix`, `propertyPrefix`, `bnodePrefix`, `xmlConformance` keys.
+- `Service/TableTrackingService`: every `iri.`/`representations.`/`statements.` setting was read in both its plain and its `key.` form, where TSConfig sets only one; the 20 ternaries now use a `stdWrapOptional()` helper with identical semantics. `hideUnhide`, `deleteUndelete`, `representations.`, `statements.`, `iriPidList(.)` and the record's `hidden` field are guarded too.
+- `Utility/Backend/IriUtility::filterByType()`: the empty value list of a cleared field, the pid of a deleted IRI, and `iriTypeFilter` per field.
+- `Domain/Repository/IriRepository::findByArguments()`: the optional `query`, `subject`, `predicate`, `object` arguments and `list.additionalPidList`.
+
+### Required changes in consuming projects
+
+None. The only observable difference: an IRI created by table tracking for a table without a `hidden` column gets `hidden = 0` instead of `null`, which DataHandler stored as 0 anyway.
+
+### Verification
+
+`php -l` clean; PHPStan against `phpstan.neon` stays at 12 errors, none on a changed line. Stubbed behavioural checks: 7 scenarios through `processDatamap_afterDatabaseOperations()` (the unfixed code reproduces the reported `t3_origuid` warning), a side-by-side run of the original and fixed `TableTrackingService` on 7 scenarios with identical datamaps apart from `hidden` above and warnings down from up to 39 per call to 0, and 4 scenarios through `IriUtility::filterByType()`.
+
+### Still open
+
+Not changed here, each needing a behavioural decision: the `returnUrl`/`pid` reads in `EnhancedAddController` (a `TypeError` on two redirect paths), `ApiController.php:344` (`TypeError` when `apiDocumentation.keys` is unset), `VocabularyController.php:68`, the `(int)` cast of `label_language` in `TableTrackingService` (a language code such as `en` becomes 0), the `(int)` cast of the TCA default `'1,2'` in `IriUtility`, `IsoCodeService::renderIsoCodeSelectDropdown()` taking `$conf` by value, and the non-existent `ForeignRecordIdentifierGenerator` named in `Configuration/TSConfig/setup.tsconfig`.
