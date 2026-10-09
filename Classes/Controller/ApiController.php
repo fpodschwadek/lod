@@ -162,24 +162,26 @@ class ApiController extends ActionController
 
         // hydra link headers (@see: https://www.hydra-cg.com/spec/latest/core/#example-16-discovering-hydra-api-documentation-documents)
         if (is_array($this->settings['apiDocumentation']['keys'] ?? null)) {
-            if (array_key_exists($pageInformation->getId(), $this->settings['apiDocumentation']['keys'])) {
-                $apiDocumentationKey = $this->settings['apiDocumentation']['keys'][$pageInformation->getId()];
-            } else {
-                $apiDocumentationKey = $this->settings['apiDocumentation']['keys'][0];
-            }
-
-            $uri = $this->uriBuilder
-              ->reset()
-              ->setTargetPageUid($pageInformation->getId())
-              ->setTargetPageType($this->getApiDocumentationPageType())
-              ->uriFor('about', ['apiDocumentation' => $apiDocumentationKey], 'Api', 'lod', 'api');
-            $apiDocumentationPath = preg_replace('/(\?|\&)(cHash)(.*)$/', '', $uri);
+            // the key configured for this page (PID = KEYWORD), else the default key 0; if neither is set there is no
+            // valid key and so no documentation to link to
+            $apiDocumentationKeys = $this->settings['apiDocumentation']['keys'];
+            $apiDocumentationKey = $apiDocumentationKeys[$pageInformation->getId()] ?? $apiDocumentationKeys[0] ?? null;
 
             $this->response = $this->response->withAddedHeader('Access-Control-Allow-Origin', $this->settings['general']['CORS']['accessControlAllowOrigin'])
               ->withAddedHeader('Access-Control-Allow-Methods', $this->settings['general']['CORS']['accessControlAllowMethods'])
               ->withAddedHeader('Access-Control-Allow-Headers', $this->settings['general']['CORS']['accessControlAllowHeaders'])
-              ->withAddedHeader('Access-Control-Expose-Headers', $this->settings['general']['CORS']['accessControlExposeHeaders'])
-              ->withAddedHeader('Link', '<' . $environment['TYPO3_SITE_BASE_URL'] . $apiDocumentationPath . '>; rel="http://www.w3.org/ns/hydra/core#apiDocumentation"');
+              ->withAddedHeader('Access-Control-Expose-Headers', $this->settings['general']['CORS']['accessControlExposeHeaders']);
+
+            if (is_string($apiDocumentationKey) && $apiDocumentationKey !== '') {
+                $uri = $this->uriBuilder
+                  ->reset()
+                  ->setTargetPageUid($pageInformation->getId())
+                  ->setTargetPageType($this->getApiDocumentationPageType())
+                  ->uriFor('about', ['apiDocumentation' => $apiDocumentationKey], 'Api', 'lod', 'api');
+                $apiDocumentationPath = preg_replace('/(\?|\&)(cHash)(.*)$/', '', $uri);
+
+                $this->response = $this->response->withAddedHeader('Link', '<' . $environment['TYPO3_SITE_BASE_URL'] . $apiDocumentationPath . '>; rel="http://www.w3.org/ns/hydra/core#apiDocumentation"');
+            }
         }
 
         // hydra JSON-LD entry point
