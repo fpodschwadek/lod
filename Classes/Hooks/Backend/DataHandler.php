@@ -33,7 +33,8 @@ use TYPO3\CMS\Backend\Utility\BackendUtility;
 use TYPO3\CMS\Core\Configuration\ExtensionConfiguration;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Utility\{
-    GeneralUtility
+    GeneralUtility,
+    MathUtility
 };
 
 class DataHandler
@@ -52,22 +53,54 @@ class DataHandler
      */
     public function processDatamap_postProcessFieldArray($status, $table, $id, &$fieldArray, &$pObj): void
     {
-        if ($table == 'tx_lod_domain_model_statement' && $fieldArray['sys_language_uid'] <= 0) {
+        if (!in_array($table, ['tx_lod_domain_model_iri', 'tx_lod_domain_model_statement', 'tx_lod_domain_model_representation'], true)) {
+            return;
+        }
+
+        $sysLanguageUid = $this->resolveSysLanguageUid($table, $id, $fieldArray);
+
+        if ($table == 'tx_lod_domain_model_statement' && $sysLanguageUid <= 0) {
             $fieldArray = $this->synchronizeStatement($status, $id, $fieldArray, $pObj);
             // force language of statements to ALL
             $fieldArray['sys_language_uid'] = -1;
         }
 
-        if ($table == 'tx_lod_domain_model_iri' && $fieldArray['sys_language_uid'] <= 0) {
+        if ($table == 'tx_lod_domain_model_iri' && $sysLanguageUid <= 0) {
             $fieldArray = $this->synchronizeIri($status, $id, $fieldArray, $pObj);
             // force language of iris to ALL
             $fieldArray['sys_language_uid'] = -1;
         }
 
         // do not create iri, statement or representation records for any other language than default or all
-        if (($table == 'tx_lod_domain_model_iri' || $table == 'tx_lod_domain_model_statement' || $table == 'tx_lod_domain_model_representation') && $fieldArray['sys_language_uid'] > 0) {
+        if ($sysLanguageUid > 0) {
             $fieldArray = [];
         }
+    }
+
+    /**
+     * Determines the language of the record being saved.
+     *
+     * For an update, DataHandler strips every field whose value did not change
+     * from $fieldArray before this hook runs, so sys_language_uid is usually
+     * absent. It is then read from the stored record. For a new record the
+     * placeholder id ("NEW...") resolves to no record and DataHandler normally
+     * supplies sys_language_uid itself; 0 (default language) is the fallback.
+     *
+     * @param string $table
+     * @param int|string $id
+     * @param array<string, mixed> $fieldArray
+     * @return int
+     */
+    private function resolveSysLanguageUid(string $table, int|string $id, array $fieldArray): int
+    {
+        if (array_key_exists('sys_language_uid', $fieldArray)) {
+            return (int)$fieldArray['sys_language_uid'];
+        }
+        if (!MathUtility::canBeInterpretedAsInteger($id)) {
+            return 0;
+        }
+        $record = BackendUtility::getRecord($table, (int)$id, 'sys_language_uid');
+        return (int)($record['sys_language_uid'] ?? 0);
     }
 
     /**

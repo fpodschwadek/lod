@@ -193,3 +193,21 @@ None. Behaviour and appearance are unchanged, and the extension no longer carrie
 Fourteen assertions were checked in a throwaway `1drop/php-utils:8.5` container. The button-group swap was exercised against a fixture built from core's own source — the literal markup strings core appends around each of the two asides, joined as `render()` joins them — and it confirms the field-control group becomes horizontal, the move group stays vertical, exactly one class is swapped, and nothing else about the markup changes. The normalisation was checked for an already-resolved list, an empty array, a uid of 0, an empty string, null, and a config without `allowed`; the branch that actually loads a record needs a database and was not covered here. The class shape was checked too: no constructor of its own, no properties of its own, and no mention of `$this->iconFactory` anywhere.
 
 A repository-wide audit was re-run, loading every class under a `packages/*/Classes` tree that extends a TYPO3 core class and comparing each `$this->x` read against what is accessible to it. This class no longer appears.
+
+## 2026-10-09 — `DataHandler` hook no longer assumes `sys_language_uid` is submitted
+
+`Classes/Hooks/Backend/DataHandler.php`, `processDatamap_postProcessFieldArray()`, read `$fieldArray['sys_language_uid']` without a guard for the IRI, statement and representation tables. DataHandler removes unchanged fields from `$fieldArray` before this hook runs, so on an ordinary update the key is missing and PHP emits `Undefined array key "sys_language_uid"`. The warning existed in 12.4 too; it surfaces in projects whose `SYS.errorHandlerErrors` includes `E_WARNING`.
+
+Because a missing key reads as `null` and `null <= 0` is true, an update of a stored translated record (language above 0) was also handled as a default-language record and rewritten to `sys_language_uid = -1`, rather than having its field array blanked as intended.
+
+### Change
+
+New private method `resolveSysLanguageUid()`: the submitted value if present, otherwise the stored record's value via `BackendUtility::getRecord()`, otherwise 0 (new records with a `NEW…` id, or records not found). The hook returns early for tables other than the three LOD tables, so no query is added elsewhere.
+
+### Required changes in consuming projects
+
+None. Records in language 0 or -1 behave exactly as before.
+
+### Verification
+
+`php -l` clean. PHPStan against `phpstan.neon` stays at 12 errors and this file analyses clean. Seven stubbed behavioural assertions covering the missing key, stored languages 0 and 2, new records, a submitted key, an unrelated table and a missing record all pass with warnings promoted to exceptions.
