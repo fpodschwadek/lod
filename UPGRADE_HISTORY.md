@@ -292,3 +292,20 @@ None. A project without configured keys now gets a 404 for API documentation req
 ### Verification
 
 `php -l` clean; PHPStan against `phpstan.neon` reports the same single pre-existing error in `ApiController.php` before and after, and 11 for the extension. The condition was checked in isolation for the default keys with `api`, `foo` and `0`, and for missing `apiDocumentation`, missing `keys`, scalar `keys` and an array argument: only the default with `api` passes, nothing throws. On the running portal `/resource/contexts/api.json` still answers 200 `application/ld+json` (the target of the `Link` header on `/resource.json`), and `/resource/contexts/foo.json` and `/resource/contexts/0.json` answer 404.
+
+## 2026-10-09 — Hydra `Link` header no longer assumes a default API documentation key
+
+`ApiController::aboutAction()` picks the key for the Hydra `apiDocumentation` `Link` header from `settings.apiDocumentation.keys`: the entry for the current page (`PID = KEYWORD`), otherwise entry `0`. The fallback read `keys[0]` unguarded, so a project that configured only per-page keys raised `Undefined array key 0` on every API request on a page without its own entry, and the header then linked to the API documentation route with no key — a URL that answers 404.
+
+### Changes made
+
+- The key is resolved as `keys[<page id>] ?? keys[0] ?? null`. If that does not give a non-empty string, there is no valid key and the `Link` header is omitted, consistent with the 404 `apiDocumentationAction()` gives for the same situation (entry above).
+- The CORS headers are no longer tied to the `Link` header: they are still sent whenever `keys` is an array, exactly as before, also when no `Link` header is.
+
+### Required changes in consuming projects
+
+None. Projects with a default key `0` (as shipped) or a key for every API page see no difference.
+
+### Verification
+
+`php -l` clean; PHPStan unchanged at one pre-existing error in `ApiController.php` and 11 for the extension. Key resolution was compared old against new for six configurations: identical where a key resolves (default only, per-page with and without default); where none does (per-page miss, empty keys, nested value) the old code warned or produced an array, the new one omits the header. On the running portal `/resource.json` and `/resource/about.html` still send `Access-Control-Allow-Origin: *` and `Link: <…/resource/contexts/api.json>; rel="…hydra/core#apiDocumentation"`.
