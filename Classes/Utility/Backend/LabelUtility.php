@@ -27,17 +27,26 @@
 namespace Digicademy\Lod\Utility\Backend;
 
 use TYPO3\CMS\Backend\Utility\BackendUtility;
+use TYPO3\CMS\Core\Utility\MathUtility;
 
 class LabelUtility
 {
     /**
-     * @param array $parameters
-     * @return array
+     * Builds the backend title of an IRI record from the display pattern in page TSconfig.
+     *
+     * Registered as both label_userFunc and formattedLabel_userFunc of tx_lod_domain_model_iri. TYPO3 also calls it
+     * for records that are not saved yet (uid "NEW…"), e.g. when an IRI is created from a statement's field control,
+     * so every row key has to be treated as optional.
+     *
+     * @param array<string, mixed> $parameters table, row, title, options and, for inline children, parent
+     * @return array<string, mixed>
      */
     public function iriLabel(array &$parameters): array
     {
+        $row = $parameters['row'] ?? [];
+
         // get PageTSConfig for current record (the page where the record is stored, not necessary the current page)
-        $TSConfig = BackendUtility::getPagesTSconfig($parameters['row']['pid']);
+        $TSConfig = BackendUtility::getPagesTSconfig((int)($row['pid'] ?? 0));
 
         // check for display pattern and initialize $iriLabel
         if (
@@ -45,9 +54,16 @@ class LabelUtility
         ) {
             $iriLabel = $TSConfig['tx_lod.']['settings.']['iriLabel.']['displayPattern'];
 
-            // strangely, we do not get the full row anymore in the label_userFunc of TYPO3 11 - which is why we need to fetch the full IRI here
-            $iri = BackendUtility::getRecord('tx_lod_domain_model_iri', (int)$parameters['row']['uid']);
-            $parameters['row'] = $iri;
+            // label_userFunc does not always get the full row (since TYPO3 11), so fetch the full IRI. A record that
+            // is not saved yet has a "NEW…" placeholder uid and nothing to fetch: keep the row that was passed in.
+            $uid = $row['uid'] ?? 0;
+            if (MathUtility::canBeInterpretedAsInteger($uid) && (int)$uid > 0) {
+                $iri = BackendUtility::getRecord('tx_lod_domain_model_iri', (int)$uid);
+                if (is_array($iri)) {
+                    $row = $iri;
+                }
+            }
+            $parameters['row'] = $row;
         } else {
             $iriLabel = '###NAMESPACE_PREFIX###:###IRI_VALUE###';
         }
@@ -67,24 +83,24 @@ class LabelUtility
                 $namespace = BackendUtility::getRecord('tx_lod_domain_model_namespace', (int)$parameters['row']['namespace']);
             }
 
-            // replace ###NAMESPACE_PREFIX###
+            // replace ###NAMESPACE_PREFIX### (str_replace, so "$1" or "\1" in a value is not read as a back-reference)
             if (isset($namespace['prefix'])) {
-                $iriLabel = preg_replace('/###NAMESPACE_PREFIX###/', $namespace['prefix'], $iriLabel);
+                $iriLabel = str_replace('###NAMESPACE_PREFIX###', (string)$namespace['prefix'], $iriLabel);
             }
 
             // replace ###NAMESPACE_IRI###
             if (isset($namespace['iri'])) {
-                $iriLabel = preg_replace('/###NAMESPACE_IRI###/', $namespace['iri'], $iriLabel);
+                $iriLabel = str_replace('###NAMESPACE_IRI###', (string)$namespace['iri'], $iriLabel);
             }
         }
 
         // replace iri markers
-        if (preg_match('/###IRI_VALUE###/', $iriLabel) > 0 && $parameters['row']['value']) {
-            $iriLabel = preg_replace('/###IRI_VALUE###/', $parameters['row']['value'], $iriLabel);
+        if (str_contains($iriLabel, '###IRI_VALUE###') && !empty($parameters['row']['value'])) {
+            $iriLabel = str_replace('###IRI_VALUE###', (string)$parameters['row']['value'], $iriLabel);
         }
 
-        if (preg_match('/###IRI_LABEL###/', $iriLabel) > 0 && $parameters['row']['label']) {
-            $iriLabel = preg_replace('/###IRI_LABEL###/', $parameters['row']['label'], $iriLabel);
+        if (str_contains($iriLabel, '###IRI_LABEL###') && !empty($parameters['row']['label'])) {
+            $iriLabel = str_replace('###IRI_LABEL###', (string)$parameters['row']['label'], $iriLabel);
         }
 
         // set title
