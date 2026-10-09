@@ -370,3 +370,35 @@ None. A localized parent still gets no localized IRI, exactly as before; only th
 ### Verification
 
 `php -l` clean; PHPStan against `phpstan.neon` reports no error in the file before or after, 11 for the extension. The real hook was called with a stubbed `BackendUtility` and database connection. For a suppressed insert the old code raised the reported warning at line 319 and four more and issued `UPDATE … uid=0`; the new code returns without warnings or updates. For an inserted IRI both versions pass on to identifier and prefix-value generation and write `prefix_value` for the real uid; `trackTables()` could not be run outside a booted TYPO3 in either version.
+
+## 2026-10-09 — Test setup aligned with the other extensions; unit tests for escaping, generators, resolvers and the DataHandler hook
+
+### Test setup (`8c74f9d`)
+
+Tests are run with this extension's own `codeception.yml` only (`codecept run <suite> -c packages/lod`), never through a configuration aggregating several extensions. The Codeception namespace is therefore `Tests`, the same as in the other extensions, which lets support classes be shared byte-identical: `Tests/Support/Helper/Typo3Module.php` is a copy of the one in `culture_portal` and must stay identical to it.
+
+- `codeception.yml`: `namespace: Tests` (was `Digicademy\Lod\Tests`); `UnitTester` and `ContentNegotiationServiceTest` moved accordingly.
+- `Unit` suite: documented as bootstrap-free; it runs in any PHP container with the project's `vendor/`.
+- New `Integration` suite enabling `Typo3Module`, for tests that need a booted TYPO3. It boots against the configured instance and its database, so its tests must only read and must not depend on particular records. It has no tests yet.
+- `composer.json`: the `Digicademy\\Lod\\Tests\\` `autoload-dev` mapping was dropped. Inside a project it never applied (path packages' `autoload-dev` is not part of the project autoloader) and it no longer matched; Codeception loads test and support classes itself. The `test` script passes `-c .`, and `test-integration` was added.
+- `README.md`: testing section.
+
+Data providers have to be declared with `Codeception\Attribute\DataProvider` (or a `@dataProvider` docblock): Codeception's Unit loader resolves providers itself and ignores PHPUnit's `#[DataProvider]` attribute.
+
+### Unit tests (`853af95`)
+
+82 tests, 168 assertions: `EscapeLiteralViewHelper`, `LangDatatypeViewHelper`, `RemoveEmptyLinesViewHelper`, `FilterIriNamespacesViewHelper`, the identifier generators and `IdentifierGeneratorService`, `HttpResolver`/`HttpsResolver`, and the `DataHandler` hook (language handling, `record`/`subject` synchronisation in inline contexts, and the suppressed-insert guard — run once against the hook before `b445d68`, where it fails with the originally reported warning). `Tests/Support/FailOnPhpErrorsTrait.php` turns PHP warnings into exceptions for tests that pin down warning-free behaviour, as the development context does.
+
+### Defects found and fixed
+
+- `6e90784` — `ForeignRecordTablenameUidIdentifierGenerator` read `includeTablename` and `record` unguarded; a generator configured without `includeTablename` aborted saving an IRI where warnings are exceptions.
+- `e8767dd` — `EscapeLiteralViewHelper` produced invalid output: N-Triples literals were escaped with `json_encode()`, which writes `/` as `\/`, an escape N-Triples does not have; Turtle literals were escaped with `addslashes()`, which writes NUL as `\0`. N-Triples and JSON-LD now use `JSON_UNESCAPED_SLASHES`; Turtle escapes `\` and `"` explicitly and writes control characters other than tab, line feed and carriage return as `\uXXXX`.
+
+### Required changes in consuming projects
+
+- Turtle output no longer escapes apostrophes (`it's` instead of `it\'s`) and N-Triples/JSON-LD output no longer escapes slashes. Both are valid and equivalent; only byte-level comparisons of serialisations see a difference.
+- Projects that referenced test classes of this extension by their old `Digicademy\Lod\Tests\…` names must use `Tests\…`.
+
+### Verification
+
+`vendor/bin/codecept run Unit -c packages/lod` in `1drop/php-utils:8.5`: 82 tests, 168 assertions, all passing after the two fixes (four failing before them, as expected). PHPStan against `phpstan.neon`: 11 errors, unchanged, none in the changed classes. The `Integration` suite could not be run in the sandbox: `Bootstrap::init()` starts, but aborts on a PHP 8.4 deprecation in `culture_portal`'s `SparqlQueryService` (see the application's upgrade history).
