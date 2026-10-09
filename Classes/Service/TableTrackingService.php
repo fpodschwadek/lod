@@ -119,11 +119,12 @@ class TableTrackingService
 
                 $label = $this->stdWrapOptional($contentObjectRenderer, $iriConfiguration, 'label', '');
 
-                $label_language = (int)$this->stdWrapOptional($contentObjectRenderer, $iriConfiguration, 'label_language', 0);
+                // ISO 639-1 codes (varchar(2)), stored as configured; empty if no language is configured
+                $label_language = $this->stdWrapOptional($contentObjectRenderer, $iriConfiguration, 'label_language', '');
 
                 $comment = $this->stdWrapOptional($contentObjectRenderer, $iriConfiguration, 'comment', '');
 
-                $comment_language = (int)$this->stdWrapOptional($contentObjectRenderer, $iriConfiguration, 'comment_language', 0);
+                $comment_language = $this->stdWrapOptional($contentObjectRenderer, $iriConfiguration, 'comment_language', '');
 
                 $dataMap = [
                     'tx_lod_domain_model_iri' => [
