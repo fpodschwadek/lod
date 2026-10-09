@@ -37,6 +37,7 @@ use Digicademy\Lod\Domain\Repository\{
     VocabularyRepository
 };
 use Psr\Http\Message\ResponseInterface;
+use Psr\Log\LoggerInterface;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Extbase\Mvc\Controller\ActionController;
 use TYPO3\CMS\Extbase\Persistence\Exception\InvalidQueryException;
@@ -49,40 +50,58 @@ class VocabularyController extends ActionController
      * @param IriNamespaceRepository $iriNamespaceRepository
      * @param GraphRepository        $graphRepository
      * @param VocabularyRepository   $vocabularyRepository
+     * @param LoggerInterface        $logger
      */
     public function __construct(
         protected IriNamespaceRepository $iriNamespaceRepository,
         protected GraphRepository $graphRepository,
-        protected VocabularyRepository $vocabularyRepository
+        protected VocabularyRepository $vocabularyRepository,
+        protected LoggerInterface $logger
     ) {}
 
     /**
      * show selected vocabulary
+     *
+     * Renders without a vocabulary if none is selected in the plugin (e.g. its FlexForm was never saved). If one is
+     * selected but cannot be loaded (deleted, hidden, out of its start/end time), the element renders the same way
+     * and a warning is logged, so the broken reference can be found.
      *
      * @return ResponseInterface
      * @throws InvalidQueryException
      */
     public function showAction(): ResponseInterface
     {
-        // if a vocabulary is set in the plugin
-        if ((int)$selectedVocabularyUid = $this->settings['general']['selectedVocabulary']) {
-            // assign the selected vocabulary
+        $selectedVocabularyUid = (int)($this->settings['general']['selectedVocabulary'] ?? 0);
+        $selectedVocabulary = null;
 
-            /**
-             * $selectedVocabulary
-             * @var Vocabulary
-             */
+        // if a vocabulary is set in the plugin
+        if ($selectedVocabularyUid > 0) {
             $selectedVocabulary = $this->vocabularyRepository->findByUid($selectedVocabularyUid);
 
+            if (!$selectedVocabulary instanceof Vocabulary) {
+                $this->logger->warning(
+                    'Vocabulary {vocabulary} selected in content element {contentElement} cannot be loaded; it may be deleted, hidden or outside its start/end time.',
+                    [
+                        'vocabulary' => $selectedVocabularyUid,
+                        'contentElement' => $this->request->getAttribute('currentContentObject')?->data['uid'] ?? 0,
+                    ]
+                );
+            }
+        }
+
+        if ($selectedVocabulary instanceof Vocabulary) {
+            // assign the selected vocabulary
             $this->view->assign('vocabulary', $selectedVocabulary);
 
-            // potentially assign vocabulary IRI graph
+            // potentially assign vocabulary IRI graph; a vocabulary need not have an IRI
+
+            $vocabularyIri = $selectedVocabulary->getIri();
 
             /**
              * $graph
-             * @var Graph
+             * @var Graph|null
              */
-            $graph = $this->graphRepository->findByIri($selectedVocabulary->getIri());
+            $graph = $vocabularyIri !== null ? $this->graphRepository->findByIri($vocabularyIri) : null;
 
             $this->view->assign('graph', $graph);
 

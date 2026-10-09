@@ -61,11 +61,11 @@ class Vocabulary extends AbstractEntity
     protected $terms;
 
     /**
-     * Returns the graph iri
+     * Returns the graph iri; null if the vocabulary has none (the TCA field is optional)
      *
-     * @return Iri $iri
+     * @return Iri|null $iri
      */
-    public function getIri(): Iri
+    public function getIri(): ?Iri
     {
         return $this->iri;
     }
