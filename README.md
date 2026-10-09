@@ -28,44 +28,36 @@ vendor/bin/phpstan analyse -c packages/lod/phpstan.neon --memory-limit 2G
 
 See https://codeception.com/docs/Introduction for details.
 
-The extension's tests live in this package, under `Tests/`, together with the `codeception.yml` and the suite configurations they need. Tests are always run with this configuration, passing the package with `-c`, never through a configuration that aggregates several extensions. The test tools come from the application's `vendor/`, so every command is run from the application's root folder, inside the container that runs PHP for the application — in the NFDI4Culture Portal, for example, `nfdi4culture_development_php_fpm`:
+Test can be found in the `Tests` folder, together with the `codeception.yml` and the suite configurations. Example test commands given here are supposed to run from the root folder of the project application.
 
 ```bash
-docker exec -it <php-container> vendor/bin/codecept run Unit -c packages/lod
+vendor/bin/codecept run Unit -c packages/lod
 ```
 
-There are two suites:
+So far, this extension provides two test suites:
 
-- `Unit` — tests that run without TYPO3 being booted. They need no configured instance and no database, so they also run in any other PHP container that has the application's `vendor/` mounted, e.g. a throwaway `1drop/php-utils` container whose tag matches the application's PHP version.
-- `Integration` — tests that need a booted TYPO3: the DI container, TCA, TypoScript or the `ContentObjectRenderer`. `Tests/Support/Helper/Typo3Module.php` boots TYPO3 against the configured instance, including its database, so these tests run only in the application's own PHP container.
+- `Unit` — tests that run without TYPO3 being booted. They don't need a configured instance or a database. This means that they can also run in, e.g., a dedicated Docker container for PHP testing that has the application's `vendor/` mounted.
+- `Integration` — tests that need a booted TYPO3: the DI container, TCA, TypoScript or the `ContentObjectRenderer`. `Tests/Support/Helper/Typo3Module.php` boots TYPO3 against the configured instance, including its database, so these tests run only if the project application is up and running.
 
 Run a single suite, a single test class or every suite of this package:
 
 ```bash
-docker exec -it <php-container> vendor/bin/codecept run Unit -c packages/lod
-docker exec -it <php-container> vendor/bin/codecept run Integration -c packages/lod
-docker exec -it <php-container> vendor/bin/codecept run Unit -c packages/lod ViewHelpers/EscapeLiteralViewHelperTest.php
-docker exec -it <php-container> vendor/bin/codecept run -c packages/lod
+vendor/bin/codecept run Unit -c packages/lod
 ```
 
-With a suite named, the path of a test class is relative to that suite's folder (`Tests/Unit/`); a single test method is selected by appending `:methodName` to that path, e.g. `ViewHelpers/EscapeLiteralViewHelperTest.php:testThrowsForUnknownFormat`.
+```bash
+vendor/bin/codecept run Integration -c packages/lod
+```
 
-In a standalone checkout of this package with its own dev dependencies installed, `composer test` and `composer test-integration` run the two suites. Installed into an application as a path repository, the package has no `vendor/` of its own; use the commands above.
+```bash
+vendor/bin/codecept run Unit -c packages/lod ViewHelpers/EscapeLiteralViewHelperTest.php
+```
+
+```bash
+vendor/bin/codecept run -c packages/lod
+```
 
 For displaying debugging messages, add the `--debug` option. After changing the modules of a suite, regenerate the actor classes with `vendor/bin/codecept build -c packages/lod`.
-
-#### Writing tests
-
-Codeception 5 detects tests with PHPUnit's rules but reads their metadata with its own, which makes the two halves easy to mix up:
-
-- Mark a test by prefixing the method name with `test`, or with `#[PHPUnit\Framework\Attributes\Test]`. A `/** @test */` doc comment is **not** picked up — PHPUnit 13 no longer reads doc-comment metadata, and such a test is silently skipped rather than reported.
-- Declare data providers with `#[Codeception\Attribute\DataProvider]` or a `@dataProvider` doc comment. PHPUnit's `#[DataProvider]` attribute is **not** picked up, because Codeception resolves providers itself; the test method is then called without arguments.
-- PHPUnit only reports PHP warnings and notices raised by the code under test. Development contexts of TYPO3 applications commonly turn warnings into exceptions (`SYS.exceptionalErrors`), so a test that pins down warning-free behaviour wraps the call in `withPhpErrorsAsExceptions()` from `Tests/Support/FailOnPhpErrorsTrait.php`.
-- `Unit` tests construct the class under test directly. ViewHelpers get their arguments through `setArguments()` and, where they render children, a closure through `setRenderChildrenClosure()`. Test doubles for collaborators that would need TYPO3 come from `$this->createStub()`.
-- `Integration` tests only read and never write: there is no separate test database, so they run against the application's own data. They must not depend on particular records either, so that they keep passing after the database is replaced.
-- The suite configurations explain both rules; see the comments in `Tests/Unit.suite.yml` and `Tests/Integration.suite.yml`.
-
-The Codeception namespace is `Tests`, as in the other extensions of the application, and `Tests/Support/Helper/Typo3Module.php` is kept byte-identical to their copies; when one changes, copy it to the others. The shared namespace is safe because only one extension's configuration is loaded per run. No `autoload-dev` mapping is needed: Codeception loads the test and support classes itself.
 
 ### TYPO3 Rector
  ```bash
