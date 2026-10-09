@@ -233,3 +233,23 @@ None. The only observable difference: an IRI created by table tracking for a tab
 ### Still open
 
 Not changed here, each needing a behavioural decision: the `returnUrl`/`pid` reads in `EnhancedAddController` (a `TypeError` on two redirect paths), `ApiController.php:344` (`TypeError` when `apiDocumentation.keys` is unset), `VocabularyController.php:68`, the `(int)` cast of `label_language` in `TableTrackingService` (a language code such as `en` becomes 0), the `(int)` cast of the TCA default `'1,2'` in `IriUtility`, `IsoCodeService::renderIsoCodeSelectDropdown()` taking `$conf` by value, and the non-existent `ForeignRecordIdentifierGenerator` named in `Configuration/TSConfig/setup.tsconfig`.
+
+## 2026-10-09 — The enhanced add wizard is replaced by core's add wizard
+
+Commit `d2494c1`. Clicking "Create new IRI" (or blank node, literal) on a statement or graph failed with `Too few arguments to function Digicademy\Lod\Backend\Form\Controller\Wizard\EnhancedAddController::__construct(), 0 passed`. The Rector run (`540b6c4`) had given the controller a constructor with `UriBuilder`, but without `#[AsController]` the class is a private service, so `Dispatcher::getCallableFromTarget()` fell back to `GeneralUtility::makeInstance()` without arguments.
+
+Fixing that alone would only have exposed the next failures, because the popup design of `e004dac` could not work in 13.4:
+
+- The popup script `Resources/Public/JavaScript/EnhancedAddRecord.js` was never loaded: `EnhancedAddRecord::render()` returned the module instruction under the numeric key `0` instead of `javaScriptModules`, the file was a RequireJS `define()` module (RequireJS was removed in 13.0, Breaking #101266), and `../typo3conf/ext/...` is not an import-map specifier. The wizard therefore ran in the content frame, replacing the parent form, and ended on a blank page when it answered `<script>close();</script>`.
+- `returnUrl` was deliberately not sent (the popup closed itself instead), so both redirects back to the parent form passed `null` to `GeneralUtility::sanitizeLocalUrl(string)`, a `TypeError`.
+- The block that writes the new record into the parent field was unreachable, because `doClose=1` always accompanied `returnEditConf` and was checked first, and it still used the 12.4 `FormDataCompiler` API (constructor argument, one-argument `compile()`), so it would have failed as soon as it was reached.
+
+Without the popup, `EnhancedAddController` was a copy of core's `AddController`, so it was removed along with its route `wizard_enhanced_add` (`Configuration/Backend/Routes.php`) and the JavaScript file. `EnhancedAddRecord` is now a subclass of core's `TYPO3\CMS\Backend\Form\FieldControl\AddRecord` whose only addition is the `iconIdentifier` option, needed because several of these controls sit on one field and core always renders `actions-plus`. Core's `wizard_add` resolves `###PAGE_TSCONFIG_ID###` and the other pid markers itself, writes the new record into the parent field according to `setValue`, redirects back to the parent form, and its `add-record.js` module routes the click through `FormEngine.preventFollowLinkIfNotSaved()`, so unsaved changes to the parent prompt for saving instead of being lost.
+
+### Required changes in consuming projects
+
+None for TCA: the `renderType` `enhancedAddRecord` and its `table`, `pid`, `setValue`, `title` and `iconIdentifier` options are unchanged. The `windowOpenParameters` option no longer has any effect. A project that linked to the `wizard_enhanced_add` route directly must use core's `wizard_add`. As before, a `###PAGE_TSCONFIG_ID###` pid needs `TCEFORM.<table>.<field>.PAGE_TSCONFIG_ID`; without it core's wizard resolves the pid to 0.
+
+### Verification
+
+`php -l` clean. PHPStan against `phpstan.neon` drops from 12 to 11 errors, the removed controller having carried one. The subclass was rendered against the real core `AddRecord` with a recording `UriBuilder`: custom icon applied, link to `wizard_add`, `returnUrl` sent, `table`/pid marker/`setValue` and parent table/field/uid passed through, core's `add-record.js` under `javaScriptModules`, `title` kept, and core's icon without warning when `iconIdentifier` is not set. The wizard round trip itself (create, write into the parent field, return) is core code and needs checking in the backend.
