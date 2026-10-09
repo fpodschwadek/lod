@@ -275,3 +275,20 @@ None. Labels of saved records are unchanged, apart from values containing `$` or
 ### Verification
 
 `php -l` clean; PHPStan against `phpstan.neon` reports no error in the file and 11 for the extension, the existing baseline. A harness ran the old and new file against a stubbed `BackendUtility` for five cases (new record with pattern, new record with an empty row, existing record, deleted record, new record without pattern): the old file reproduced the warning at line 82 (and 86) in three cases; the new file raises none, and the existing-record and no-pattern labels are identical apart from the back-reference fix.
+
+## 2026-10-09 — API documentation key check no longer throws when no keys are configured
+
+`ApiController::apiDocumentationAction()` checked the requested `apiDocumentation` argument with `in_array($key, $this->settings['apiDocumentation']['keys'])`, unguarded. If `plugin.tx_lod.settings.apiDocumentation.keys` was missing (removed with `>`, or `lod`'s static TypoScript not included) or set as a scalar (`keys = api` instead of `keys.0 = api`), `in_array()` threw a `TypeError`. Because the argument comes from the request (`/<api page>/contexts/<anything>.json` via the `ApiPlugin` route enhancer), any visitor could turn that misconfiguration into an HTTP 500. The check is unchanged from 12.4; it came up in the undefined-array-key audit.
+
+### Changes made
+
+- Missing or non-array `keys` are treated as "no valid key": the action answers with the same 404 as for an unknown key. This matches the `Link` header code in `aboutAction()`, which already skipped the header when `keys` was not an array.
+- The comparison is strict. TypoScript values are strings, so configured keys still match; a request value is no longer loosely compared against them.
+
+### Required changes in consuming projects
+
+None. A project without configured keys now gets a 404 for API documentation requests instead of a 500.
+
+### Verification
+
+`php -l` clean; PHPStan against `phpstan.neon` reports the same single pre-existing error in `ApiController.php` before and after, and 11 for the extension. The condition was checked in isolation for the default keys with `api`, `foo` and `0`, and for missing `apiDocumentation`, missing `keys`, scalar `keys` and an array argument: only the default with `api` passes, nothing throws. On the running portal `/resource/contexts/api.json` still answers 200 `application/ld+json` (the target of the `Link` header on `/resource.json`), and `/resource/contexts/foo.json` and `/resource/contexts/0.json` answer 404.
