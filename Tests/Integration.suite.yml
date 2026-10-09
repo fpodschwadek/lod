@@ -1,0 +1,19 @@
+# Codeception Test Suite Configuration
+#
+# Suite for tests that need a booted TYPO3: the DI container, TCA, TypoScript or the
+# ContentObjectRenderer.
+#
+# Typo3Module boots TYPO3 against the configured instance, including its database. There is no
+# separate test database, so tests in this suite must only read and never write. They also must
+# not depend on particular records, so that they keep passing after a database sync.
+#
+# Run inside the PHP-FPM container, from the project root, with this extension's configuration:
+#
+#   docker exec -it nfdi4culture_development_php_fpm vendor/bin/codecept run Integration -c packages/lod
+
+actor: IntegrationTester
+modules:
+    enabled:
+        - Asserts
+        - \Tests\Support\Helper\Typo3Module
+step_decorators: ~

@@ -1,4 +1,8 @@
-namespace: Digicademy\Lod\Tests
+# Tests are always run against this extension's own configuration (`codecept run <suite> -c packages/lod`),
+# never through an aggregating configuration, so only one extension's `Tests\` namespace is loaded per run.
+# The namespace is the same as in the other extensions on purpose: support classes such as
+# Support\Helper\Typo3Module are kept byte-identical across extensions.
+namespace: Tests
 support_namespace: Support
 paths:
     tests: Tests

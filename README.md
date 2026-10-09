@@ -24,6 +24,20 @@ All examples given here assume that these tools are executed from the root folde
 vendor/bin/phpstan analyse -c packages/lod/phpstan.neon --memory-limit 2G
 ```
 
+### Codeception
+
+Tests are always run with this extension's own `codeception.yml`, never through a configuration that aggregates several extensions. There are two suites:
+
+- `Unit` — tests that run without TYPO3 being booted. They need no configured instance and no database, so they can run in any PHP container with the project's `vendor/`.
+- `Integration` — tests that need a booted TYPO3 (DI container, TCA, TypoScript, `ContentObjectRenderer`). `Tests/Support/Helper/Typo3Module.php` boots it against the configured instance, so these tests run where the application runs. They only read and never write, because there is no separate test database.
+
+```bash
+vendor/bin/codecept run Unit -c packages/lod
+vendor/bin/codecept run Integration -c packages/lod
+```
+
+`Tests/Support/Helper/Typo3Module.php` is kept byte-identical to the copies in other extensions; the shared `Tests` namespace is safe because only one extension's configuration is loaded per run. After changing a suite's modules, regenerate the actor classes with `vendor/bin/codecept build -c packages/lod`.
+
 ### TYPO3 Rector
  ```bash
  vendor/bin/rector process --config packages/lod/rector.php

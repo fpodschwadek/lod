@@ -1,4 +1,19 @@
+# Codeception Test Suite Configuration
+#
+# Suite for unit tests that run without TYPO3 being booted.
+#
+# Typo3Module (Tests/Support/Helper/Typo3Module.php) is deliberately NOT enabled here. It runs
+# Bootstrap::init(), which requires a fully configured instance — config/system/settings.php has
+# to be readable and the database credentials in it have to be valid. Tests in this suite must not
+# need the TYPO3 container, so that the suite stays runnable outside the PHP-FPM container (e.g. in
+# a throwaway 1drop/php-utils container). Tests that do need it belong in the Integration suite.
+#
+# Run from the project root with this extension's configuration:
+#
+#   vendor/bin/codecept run Unit -c packages/lod
+
 actor: UnitTester
 modules:
     enabled:
         - Asserts
+step_decorators: ~

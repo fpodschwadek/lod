@@ -27,7 +27,7 @@ declare(strict_types=1);
  *  This copyright notice MUST APPEAR in all copies of the script!
  ***************************************************************/
 
-namespace Digicademy\Lod\Tests\Unit\Service;
+namespace Tests\Unit\Service;
 
 use Codeception\Test\Unit;
 use Digicademy\Lod\Service\ContentNegotiationService;
