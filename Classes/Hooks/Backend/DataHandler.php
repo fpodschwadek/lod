@@ -455,7 +455,7 @@ class DataHandler
             $TSConfig = BackendUtility::getPagesTSconfig($trackedRecord['pid']);
 
             // only if the registered table is configured in TSConfig next steps are executed
-            if ($TSConfig['tx_lod.']['settings.']['tableTracking.'][$table . '.']['track'] == '1') {
+            if (($TSConfig['tx_lod.']['settings.']['tableTracking.'][$table . '.']['track'] ?? '') == '1') {
                 $trackingService = GeneralUtility::makeInstance(
                     TableTrackingService::class,
                     $action,

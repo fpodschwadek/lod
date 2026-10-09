@@ -133,7 +133,7 @@ class IriRepository extends Repository
         $constraints = [];
 
         // search constraint
-        if ($arguments['query']) {
+        if ($arguments['query'] ?? '') {
             $keywordList = SearchUtility::wordSplit($arguments['query']);
 
             if (count($keywordList) > 0) {
@@ -153,12 +153,12 @@ class IriRepository extends Repository
         }
 
         // optional additional pids for statement pattern look up (containing vocabularies etc.)
-        ($settings['list']['additionalPidList']) ?
+        ($settings['list']['additionalPidList'] ?? '') ?
             $additionalPidList = GeneralUtility::intExplode(',', $settings['list']['additionalPidList'], true) :
             $additionalPidList = [];
 
         // $subject constraint if valid
-        if ($arguments['subject']) {
+        if ($arguments['subject'] ?? '') {
             $subject = $this->findByValue($arguments['subject'], 'list', $additionalPidList);
             if ($subject) {
                 $constraints[] = $query->equals('statements.subject_uid', $subject);
@@ -168,7 +168,7 @@ class IriRepository extends Repository
         }
 
         // predicate constraint if valid
-        if ($arguments['predicate']) {
+        if ($arguments['predicate'] ?? '') {
             $predicate = $this->findByValue($arguments['predicate'], 'list', $additionalPidList);
             if ($predicate) {
                 $constraints[] = $query->equals('statements.predicate_uid', $predicate);
@@ -178,7 +178,7 @@ class IriRepository extends Repository
         }
 
         // object constraint if valid
-        if ($arguments['object']) {
+        if ($arguments['object'] ?? '') {
             $object = $this->findByValue($arguments['object'], 'list', $additionalPidList);
             if ($object) {
                 $constraints[] = $query->equals('statements.object_uid', $object);

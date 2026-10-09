@@ -67,7 +67,7 @@ class TableTrackingService
         // first of all check if IRI exists for the current record
         if ($existingIRIs) {
             // action update and hideUnhide = 1 is set
-            if ($this->action == 'update' && array_key_exists('hidden', $this->record) && $this->configuration['hideUnhide'] == '1') {
+            if ($this->action == 'update' && array_key_exists('hidden', $this->record) && ($this->configuration['hideUnhide'] ?? '') == '1') {
                 foreach ($existingIRIs as $iri) {
                     if ($this->record['hidden'] != $iri['hidden']) {
                         $dataMap = [
@@ -79,7 +79,7 @@ class TableTrackingService
                 }
             }
             // action delete and deleteUndelete = 1 is set
-            if ($this->action == 'delete' && $this->configuration['deleteUndelete'] == '1') {
+            if ($this->action == 'delete' && ($this->configuration['deleteUndelete'] ?? '') == '1') {
                 foreach ($existingIRIs as $iri) {
                     $cmdMap = [
                         'tx_lod_domain_model_iri' => [
@@ -89,7 +89,7 @@ class TableTrackingService
                 }
             }
             // action undelete and deleteUndelete = 1 is set
-            if ($this->action == 'undelete' && $this->configuration['deleteUndelete'] == '1') {
+            if ($this->action == 'undelete' && ($this->configuration['deleteUndelete'] ?? '') == '1') {
                 foreach ($existingIRIs as $iri) {
                     $cmdMap = [
                         'tx_lod_domain_model_iri' => [
@@ -105,37 +105,32 @@ class TableTrackingService
             // a copied tracked record is the same as a new record - no iri will yet exists with a 'tablename_uid' in the iri record field
             if ($this->action == 'new' || $this->action == 'update') {
                 $iriUid = 'NEW' . uniqid('');
+                $iriConfiguration = $this->configuration['iri.'] ?? [];
 
-                if ($this->configuration['iri.']['pid']) {
-                    $pid = (int)$contentObjectRenderer->stdWrap($this->configuration['iri.']['pid'], $this->configuration['iri.']['pid.']);
+                if ($iriConfiguration['pid'] ?? '') {
+                    $pid = (int)$contentObjectRenderer->stdWrap($iriConfiguration['pid'], $iriConfiguration['pid.'] ?? []);
                 } else {
                     $pid = (int)$this->record['pid'];
                 }
 
-                ($this->configuration['iri.']['type'] || $this->configuration['iri.']['type.']) ?
-                    $type = (int)$contentObjectRenderer->stdWrap($this->configuration['iri.']['type'], $this->configuration['iri.']['type.']) : $type = 1;
+                $type = (int)$this->stdWrapOptional($contentObjectRenderer, $iriConfiguration, 'type', 1);
 
-                ($this->configuration['iri.']['namespace'] || $this->configuration['iri.']['namespace.']) ?
-                    $namespace = (int)$contentObjectRenderer->stdWrap($this->configuration['iri.']['namespace'], $this->configuration['iri.']['namespace.']) : $namespace = 0;
+                $namespace = (int)$this->stdWrapOptional($contentObjectRenderer, $iriConfiguration, 'namespace', 0);
 
-                ($this->configuration['iri.']['label'] || $this->configuration['iri.']['label.']) ?
-                    $label = $contentObjectRenderer->stdWrap($this->configuration['iri.']['label'], $this->configuration['iri.']['label.']) : $label = '';
+                $label = $this->stdWrapOptional($contentObjectRenderer, $iriConfiguration, 'label', '');
 
-                ($this->configuration['iri.']['label_language'] || $this->configuration['iri.']['label_language.']) ?
-                    $label_language = (int)$contentObjectRenderer->stdWrap($this->configuration['iri.']['label_language'], $this->configuration['iri.']['label_language.']) : $label_language = 0;
+                $label_language = (int)$this->stdWrapOptional($contentObjectRenderer, $iriConfiguration, 'label_language', 0);
 
-                ($this->configuration['iri.']['comment'] || $this->configuration['iri.']['comment.']) ?
-                    $comment = $contentObjectRenderer->stdWrap($this->configuration['iri.']['comment'], $this->configuration['iri.']['comment.']) : $comment = '';
+                $comment = $this->stdWrapOptional($contentObjectRenderer, $iriConfiguration, 'comment', '');
 
-                ($this->configuration['iri.']['comment_language'] || $this->configuration['iri.']['comment_language.']) ?
-                    $comment_language = (int)$contentObjectRenderer->stdWrap($this->configuration['iri.']['comment_language'], $this->configuration['iri.']['comment_language.']) : $comment_language = 0;
+                $comment_language = (int)$this->stdWrapOptional($contentObjectRenderer, $iriConfiguration, 'comment_language', 0);
 
                 $dataMap = [
                     'tx_lod_domain_model_iri' => [
                         $iriUid => [
                             'pid' => $pid,
                             'type' => $type,
-                            'hidden' => $this->record['hidden'],
+                            'hidden' => $this->record['hidden'] ?? 0,
                             'namespace' => $namespace,
                             'label' => $label,
                             'label_language' => $label_language,
@@ -148,57 +143,25 @@ class TableTrackingService
                     ],
                 ];
 
-                if (is_array($this->configuration['representations.'])) {
+                if (is_array($this->configuration['representations.'] ?? null)) {
                     foreach ($this->configuration['representations.'] as $representationToCreate) {
                         $representationUid = 'NEW' . uniqid('');
 
-                        ($representationToCreate['pid'] || $representationToCreate['pid.']) ?
-                            $representationPid = (int)$contentObjectRenderer->stdWrap(
-                                $representationToCreate['pid'],
-                                $representationToCreate['pid.']
-                            ) : $representationPid = 1;
+                        $representationPid = (int)$this->stdWrapOptional($contentObjectRenderer, $representationToCreate, 'pid', 1);
 
-                        ($representationToCreate['scheme'] || $representationToCreate['scheme.']) ?
-                            $scheme = $contentObjectRenderer->stdWrap(
-                                $representationToCreate['scheme'],
-                                $representationToCreate['scheme.']
-                            ) : $scheme = '';
+                        $scheme = $this->stdWrapOptional($contentObjectRenderer, $representationToCreate, 'scheme', '');
 
-                        ($representationToCreate['authority'] || $representationToCreate['authority.']) ?
-                            $authority = $contentObjectRenderer->stdWrap(
-                                $representationToCreate['authority'],
-                                $representationToCreate['authority.']
-                            ) : $authority = '';
+                        $authority = $this->stdWrapOptional($contentObjectRenderer, $representationToCreate, 'authority', '');
 
-                        ($representationToCreate['path'] || $representationToCreate['path.']) ?
-                            $path = $contentObjectRenderer->stdWrap(
-                                $representationToCreate['path'],
-                                $representationToCreate['path.']
-                            ) : $path = '';
+                        $path = $this->stdWrapOptional($contentObjectRenderer, $representationToCreate, 'path', '');
 
-                        ($representationToCreate['query'] || $representationToCreate['query.']) ?
-                            $query = $contentObjectRenderer->stdWrap(
-                                $representationToCreate['query'],
-                                $representationToCreate['query.']
-                            ) : $query = '';
+                        $query = $this->stdWrapOptional($contentObjectRenderer, $representationToCreate, 'query', '');
 
-                        ($representationToCreate['fragment'] || $representationToCreate['fragment.']) ?
-                            $fragment = $contentObjectRenderer->stdWrap(
-                                $representationToCreate['fragment'],
-                                $representationToCreate['fragment.']
-                            ) : $fragment = '';
+                        $fragment = $this->stdWrapOptional($contentObjectRenderer, $representationToCreate, 'fragment', '');
 
-                        ($representationToCreate['content_type'] || $representationToCreate['content_type.']) ?
-                            $contentType = $contentObjectRenderer->stdWrap(
-                                $representationToCreate['content_type'],
-                                $representationToCreate['content_type.']
-                            ) : $contentType = '';
+                        $contentType = $this->stdWrapOptional($contentObjectRenderer, $representationToCreate, 'content_type', '');
 
-                        ($representationToCreate['content_language'] || $representationToCreate['content_language.']) ?
-                            $contentLanguage = $contentObjectRenderer->stdWrap(
-                                $representationToCreate['content_language'],
-                                $representationToCreate['content_language.']
-                            ) : $contentLanguage = '';
+                        $contentLanguage = $this->stdWrapOptional($contentObjectRenderer, $representationToCreate, 'content_language', '');
 
                         $dataMap['tx_lod_domain_model_representation'][$representationUid] = [
                             'pid' => $representationPid,
@@ -214,45 +177,21 @@ class TableTrackingService
                     }
                 }
 
-                if (is_array($this->configuration['statements.'])) {
+                if (is_array($this->configuration['statements.'] ?? null)) {
                     foreach ($this->configuration['statements.'] as $statementToCreate) {
                         $statementUid = 'NEW' . uniqid('');
 
-                        ($statementToCreate['pid'] || $statementToCreate['pid.']) ?
-                            $statementPid = (int)$contentObjectRenderer->stdWrap(
-                                $statementToCreate['pid'],
-                                $statementToCreate['pid.']
-                            ) : $statementPid = 1;
+                        $statementPid = (int)$this->stdWrapOptional($contentObjectRenderer, $statementToCreate, 'pid', 1);
 
-                        ($statementToCreate['predicate'] || $statementToCreate['predicate.']) ?
-                            $predicateUid = $contentObjectRenderer->stdWrap(
-                                $statementToCreate['predicate'],
-                                $statementToCreate['predicate.']
-                            ) : $predicateUid = '';
+                        $predicateUid = $this->stdWrapOptional($contentObjectRenderer, $statementToCreate, 'predicate', '');
 
-                        ($statementToCreate['object'] || $statementToCreate['object.']) ?
-                            $objectUid = $contentObjectRenderer->stdWrap(
-                                $statementToCreate['object'],
-                                $statementToCreate['object.']
-                            ) : $objectUid = '';
+                        $objectUid = $this->stdWrapOptional($contentObjectRenderer, $statementToCreate, 'object', '');
 
-                        ($statementToCreate['object_type'] || $statementToCreate['object_type.']) ?
-                            $objectType = $contentObjectRenderer->stdWrap(
-                                $statementToCreate['object_type'],
-                                $statementToCreate['object_type.']
-                            ) : $objectType = 'tx_lod_domain_model_iri';
+                        $objectType = $this->stdWrapOptional($contentObjectRenderer, $statementToCreate, 'object_type', 'tx_lod_domain_model_iri');
 
-                        ($statementToCreate['graph'] || $statementToCreate['graph.']) ?
-                            $graph = $contentObjectRenderer->stdWrap(
-                                $statementToCreate['graph'],
-                                $statementToCreate['graph.']
-                            ) : $graph = '';
+                        $graph = $this->stdWrapOptional($contentObjectRenderer, $statementToCreate, 'graph', '');
 
-                        ($statementToCreate['recursion'] || $statementToCreate['recursion.']) ?
-                            $objectRecursion = $contentObjectRenderer->stdWrap(
-                                $statementToCreate['recursion'],
-                                $statementToCreate['recursion.']
-                            ) : $objectRecursion = 0;
+                        $objectRecursion = $this->stdWrapOptional($contentObjectRenderer, $statementToCreate, 'recursion', 0);
 
                         $dataMap['tx_lod_domain_model_statement'][$statementUid] = [
                             'pid' => $statementPid,
@@ -285,14 +224,37 @@ class TableTrackingService
     }
 
     /**
+     * Applies stdWrap to an optional TSConfig value.
+     *
+     * Table tracking configuration usually sets either the plain key (a constant) or the
+     * "key." stdWrap array (e.g. a dataWrap), rarely both. Returns $default if neither
+     * is set, otherwise the stdWrap result of whichever parts are present.
+     *
+     * @param array<string, mixed> $configuration
+     */
+    private function stdWrapOptional(
+        ContentObjectRenderer $contentObjectRenderer,
+        array $configuration,
+        string $key,
+        mixed $default
+    ): mixed {
+        $value = $configuration[$key] ?? '';
+        $stdWrapConfiguration = $configuration[$key . '.'] ?? [];
+        if (!$value && !$stdWrapConfiguration) {
+            return $default;
+        }
+        return $contentObjectRenderer->stdWrap($value, $stdWrapConfiguration);
+    }
+
+    /**
      * Checks if an IRI exists for the tracked record (by looking at the record field and the uid)
      *
      * @return array A result array with iri records if existing
      */
     private function iriExists(): array
     {
-        if ($this->configuration['iriPidList']) {
-            (is_array($this->configuration['iriPidList.']) && array_key_exists('recursive', $this->configuration['iriPidList.'])) ?
+        if ($this->configuration['iriPidList'] ?? '') {
+            (is_array($this->configuration['iriPidList.'] ?? null) && array_key_exists('recursive', $this->configuration['iriPidList.'])) ?
                 $recursive = $this->configuration['iriPidList.']['recursive'] : $recursive = 0;
             $iriPidList = $this->getIriPidList($this->configuration['iriPidList'], $recursive);
         } else {

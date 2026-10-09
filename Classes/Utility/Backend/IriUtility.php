@@ -45,10 +45,11 @@ class IriUtility
         // basic setting: record is allowed
         $filterResult = $parameters['values'];
 
-        // apply filter to record, but only for IRI table
-        if (preg_match('/tx_lod_domain_model_iri/', $parameters['values'][0])) {
+        // apply filter to record, but only for IRI table (values is empty when the field was cleared)
+        $value = (string)($parameters['values'][0] ?? '');
+        if (preg_match('/tx_lod_domain_model_iri/', $value)) {
             // trim record uid
-            $recordUid = (int)substr(strrchr($parameters['values'][0], '_'), 1);
+            $recordUid = (int)substr(strrchr($value, '_'), 1);
 
             // fetch parent page depending on context
             if ($parentObject instanceof DataHandler) {
@@ -57,14 +58,14 @@ class IriUtility
                     $recordUid,
                     'pid',
                 );
-                $pid = $iriRecord['pid'];
+                $pid = $iriRecord['pid'] ?? 0;
             } else {
                 $pid = $parentObject->id;
             }
 
             // get PageTSConfig for parent page and set type configuration
             $pagesTSConfig = BackendUtility::getPagesTSconfig($pid);
-            if ($pagesTSConfig['tx_lod.']['settings.']['iriTypeFilter.'][$parameters['field']]) {
+            if ($pagesTSConfig['tx_lod.']['settings.']['iriTypeFilter.'][$parameters['field']] ?? '') {
                 $types = implode(',', GeneralUtility::intExplode(',', $pagesTSConfig['tx_lod.']['settings.']['iriTypeFilter.'][$parameters['field']]));
             } else {
                 $types = (int)$parameters['default'];
