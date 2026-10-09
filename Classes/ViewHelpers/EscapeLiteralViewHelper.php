@@ -64,12 +64,25 @@ class EscapeLiteralViewHelper extends AbstractViewHelper
         switch ($format) {
             case 'jsonld':
             case 'ntriples':
-                $content = json_encode($literal);
+                // JSON string escaping is valid N-Triples except for "\/", which N-Triples does not know
+                $content = json_encode($literal, JSON_UNESCAPED_SLASHES);
                 break;
             case 'turtle':
+                // escape backslash and double quote, and write control characters other than tab, line feed and
+                // carriage return as \uXXXX (addslashes() produced "\0", which is not a Turtle escape); tab, line feed
+                // and carriage return are allowed as is in a long string
+                $escaped = preg_replace_callback(
+                    '/[\\\\"\x00-\x08\x0B\x0C\x0E-\x1F]/',
+                    static fn(array $match): string => match ($match[0]) {
+                        '\\' => '\\\\',
+                        '"' => '\\"',
+                        default => sprintf('\\u%04X', ord($match[0])),
+                    },
+                    $literal
+                );
                 (preg_match('/[\t\n\r]/', $literal)) ?
-                    $content = '"""' . addslashes($literal) . '"""' :
-                    $content = '"' . addslashes($literal) . '"';
+                    $content = '"""' . $escaped . '"""' :
+                    $content = '"' . $escaped . '"';
                 break;
             default:
                 throw new Exception('Unknown serialisation format for escaping the literal', 1577109174);
