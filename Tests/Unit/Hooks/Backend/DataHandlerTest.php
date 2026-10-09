@@ -31,7 +31,6 @@ namespace Tests\Unit\Hooks\Backend;
 use Codeception\Test\Unit;
 use Digicademy\Lod\Hooks\Backend\DataHandler;
 use stdClass;
-use Tests\Support\FailOnPhpErrorsTrait;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 
 /**
@@ -43,8 +42,6 @@ use TYPO3\CMS\Core\Database\ConnectionPool;
  */
 final class DataHandlerTest extends Unit
 {
-    use FailOnPhpErrorsTrait;
-
     private function hook(): DataHandler
     {
         return new DataHandler($this->createStub(ConnectionPool::class));
@@ -69,9 +66,7 @@ final class DataHandlerTest extends Unit
      */
     private function postProcess(string $status, string $table, int|string $id, array $fieldArray, stdClass $dataHandler): array
     {
-        $this->withPhpErrorsAsExceptions(function () use ($status, $table, $id, &$fieldArray, $dataHandler): void {
-            $this->hook()->processDatamap_postProcessFieldArray($status, $table, $id, $fieldArray, $dataHandler);
-        });
+        $this->hook()->processDatamap_postProcessFieldArray($status, $table, $id, $fieldArray, $dataHandler);
 
         return $fieldArray;
     }
@@ -179,13 +174,12 @@ final class DataHandlerTest extends Unit
     /**
      * A new record whose insert was suppressed (see above) is passed on with its NEW... id but has
      * no uid; the hook must return before it looks anything up. Reaching the database would fail
-     * here, as no database is configured in this suite.
+     * here, as no database is configured in this suite, and so would the warning the hook used to
+     * raise for the missing uid, which Codeception reports as a test error.
      */
     public function testDoesNothingAfterASuppressedInsert(): void
     {
-        $this->withPhpErrorsAsExceptions(function (): void {
-            $this->hook()->processDatamap_afterDatabaseOperations('new', 'tx_lod_domain_model_iri', 'NEW6ac8b96a8bb95903853014', [], $this->dataHandler());
-        });
+        $this->hook()->processDatamap_afterDatabaseOperations('new', 'tx_lod_domain_model_iri', 'NEW6ac8b96a8bb95903853014', [], $this->dataHandler());
 
         $this->assertTrue(true);
     }

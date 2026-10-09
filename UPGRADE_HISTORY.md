@@ -406,3 +406,7 @@ Data providers have to be declared with `Codeception\Attribute\DataProvider` (or
 ## 2026-10-09 — Implicitly nullable parameter in `StatementRepository::findByPosition()`
 
 `2d22ba6`. `findByPosition()` declared `IriNamespace $graph = null`, implicitly nullable, which PHP 8.4 deprecates. Where `E_DEPRECATED` is in `SYS.exceptionalErrors`, the deprecation is thrown as soon as the class is compiled — for example during `Bootstrap::init()` in an `Integration` test run. The parameter is now `?IriNamespace`. No changes needed in consuming projects. A lint of `Classes/` with `E_ALL` reports no further deprecations; PHPStan goes from 11 errors to 10.
+
+## 2026-10-09 — Correction: `FailOnPhpErrorsTrait` removed
+
+The test entry above stated that PHPUnit only reports PHP warnings, and added `Tests/Support/FailOnPhpErrorsTrait.php` to turn them into exceptions. That was wrong: Codeception installs its own error handler, which throws for every error level in its `error_level` setting (default `E_ALL & ~E_DEPRECATED`), so a warning raised by the code under test already fails the test. The trait was redundant and has been removed; the tests that pin down warning-free behaviour call the code directly. Verified by running them against the code before `b445d68` and `6e90784`: the three affected tests still fail there, and all 82 pass on the current code.

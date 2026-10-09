@@ -34,7 +34,6 @@ use Digicademy\Lod\Generator\ForeignRecordTablenameUidIdentifierGenerator;
 use Digicademy\Lod\Generator\UidIdentifierGenerator;
 use Digicademy\Lod\Generator\UuidIdentifierGenerator;
 use Digicademy\Lod\Service\IdentifierGeneratorService;
-use Tests\Support\FailOnPhpErrorsTrait;
 
 /**
  * Unit tests for the generators that fill tx_lod_domain_model_iri.value and
@@ -45,8 +44,6 @@ use Tests\Support\FailOnPhpErrorsTrait;
  */
 final class IdentifierGeneratorTest extends Unit
 {
-    use FailOnPhpErrorsTrait;
-
     private const PREFIXES = ['entityPrefix' => 'E', 'propertyPrefix' => 'P', 'bnodePrefix' => 'b'];
 
     /**
@@ -127,13 +124,14 @@ final class IdentifierGeneratorTest extends Unit
     }
 
     /**
-     * includeTablename is optional configuration; leaving it out must not raise a warning.
+     * includeTablename is optional configuration; leaving it out must not raise a warning (Codeception
+     * reports PHP warnings as test errors).
      */
     public function testForeignRecordGeneratorWithoutIncludeTablenameSettingUsesTheUid(): void
     {
         $generator = new ForeignRecordTablenameUidIdentifierGenerator([], ['type' => '1', 'record' => 'tx_academy_domain_model_persons_17']);
 
-        $this->assertSame('17', $this->withPhpErrorsAsExceptions(static fn(): string => $generator->generate()));
+        $this->assertSame('17', $generator->generate());
     }
 
     /**
@@ -143,7 +141,7 @@ final class IdentifierGeneratorTest extends Unit
     {
         $generator = new ForeignRecordTablenameUidIdentifierGenerator(['includeTablename' => '0'], []);
 
-        $this->assertSame('', $this->withPhpErrorsAsExceptions(static fn(): string => $generator->generate()));
+        $this->assertSame('', $generator->generate());
     }
 
     public function testServicePassesConfigurationAndRecordToTheGenerator(): void
