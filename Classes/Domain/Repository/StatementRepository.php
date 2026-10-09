@@ -57,7 +57,7 @@ class StatementRepository extends Repository
     public function findByPosition(
         string $position,
         object $resource,
-        IriNamespace $graph = null
+        ?IriNamespace $graph = null
     ): QueryResultInterface {
         $query = $this->createQuery();
         $query->getQuerySettings()
