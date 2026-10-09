@@ -114,6 +114,12 @@ class DataHandler
      */
     public function processDatamap_afterDatabaseOperations($status, $table, $id, $fieldArray, $pObj): void
     {
+        // a new record whose insert was suppressed (e.g. by processDatamap_postProcessFieldArray() for records in a
+        // language other than default or all) has no uid: there is nothing to generate or track
+        if ($status === 'new' && !isset($pObj->substNEWwithIDs[$id])) {
+            return;
+        }
+
         // identifier generation for IRIs and bnodes
         if ($table == 'tx_lod_domain_model_iri' || $table == 'tx_lod_domain_model_bnode') {
             $this->generateIdentifier($status, $table, $id, $fieldArray, $pObj);
