@@ -253,3 +253,25 @@ None for TCA: the `renderType` `enhancedAddRecord` and its `table`, `pid`, `setV
 ### Verification
 
 `php -l` clean. PHPStan against `phpstan.neon` drops from 12 to 11 errors, the removed controller having carried one. The subclass was rendered against the real core `AddRecord` with a recording `UriBuilder`: custom icon applied, link to `wizard_add`, `returnUrl` sent, `table`/pid marker/`setValue` and parent table/field/uid passed through, core's `add-record.js` under `javaScriptModules`, `title` kept, and core's icon without warning when `iconIdentifier` is not set. The wizard round trip itself (create, write into the parent field, return) is core code and needs checking in the backend.
+
+## 2026-10-09 — IRI label no longer assumes the record is saved
+
+Creating a new IRI from a statement's field control raised `PHP Warning: Trying to access array offset on null in .../Classes/Utility/Backend/LabelUtility.php line 82`. This is not a TYPO3 13 API change: the file was unchanged since 12.4. It surfaced now because the "Create new IRI" control works again since the previous entry, and core's `wizard_add` opens the IRI form for a record that does not exist yet.
+
+### Cause
+
+`LabelUtility::iriLabel()` is the `label_userFunc` and `formattedLabel_userFunc` of `tx_lod_domain_model_iri`. When page TSconfig sets `tx_lod.settings.iriLabel.displayPattern`, it re-fetched the IRI with `BackendUtility::getRecord(…, (int)$row['uid'])` and replaced `$parameters['row']` with the result unconditionally. A record that has not been saved has a `NEW…` placeholder uid, `(int)'NEW…'` is `0`, `getRecord()` returns `null`, and the row TYPO3 had supplied was thrown away. The namespace lookups are guarded with `isset()` and stayed silent; the `###IRI_VALUE###` and `###IRI_LABEL###` replacements were not and raised the warning. A deleted or missing record produced the same warning, and the label was then left with every marker unreplaced.
+
+### Changes made
+
+- The record is only re-fetched for a positive integer uid, and the passed-in row is only replaced when `getRecord()` returns an array. For a new record the label is therefore built from the form's own row, e.g. `n4c:E99` instead of the raw pattern.
+- `pid`, `uid`, `value` and `label` are read as optional keys.
+- The markers are replaced with `str_replace()` instead of `preg_replace()`. With `preg_replace()` a `$1` or `\1` in a namespace prefix, IRI value or label was read as a back-reference, so an IRI value `E$1` was shown as `E`.
+
+### Required changes in consuming projects
+
+None. Labels of saved records are unchanged, apart from values containing `$` or `\` digit sequences, which are now shown verbatim.
+
+### Verification
+
+`php -l` clean; PHPStan against `phpstan.neon` reports no error in the file and 11 for the extension, the existing baseline. A harness ran the old and new file against a stubbed `BackendUtility` for five cases (new record with pattern, new record with an empty row, existing record, deleted record, new record without pattern): the old file reproduced the warning at line 82 (and 86) in three cases; the new file raises none, and the existing-record and no-pattern labels are identical apart from the back-reference fix.
